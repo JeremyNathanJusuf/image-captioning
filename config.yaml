@@ -1,0 +1,16 @@
+model:
+  embed_size: 512
+  hidden_size: 512
+  num_layers: 1
+
+training:
+  learning_rate: 3e-5
+  num_epochs: 30
+  num_workers: 2
+  batch_size: 1024
+  test_ratio: 0.05
+  val_ratio: 0.1
+
+checkpoint:
+  load_model: false
+  save_model: true
