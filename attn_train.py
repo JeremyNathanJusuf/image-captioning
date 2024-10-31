@@ -11,6 +11,8 @@ from attn_model import JoshNameThisModel
 from nlgmetricverse import NLGMetricverse, load_metric
 import yaml
 
+# TODO merge with the train.py file
+
 # Configurations
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
@@ -22,7 +24,7 @@ num_layers = int(config['model']['num_layers'])
 learning_rate = float(config['training']['learning_rate'])
 num_epochs = int(config['training']['num_epochs'])
 num_workers = int(config['training']['num_workers'])
-batch_size = 2
+batch_size = 64
 
 load_model = bool(config['checkpoint']['load_model'])
 save_model = bool(config['checkpoint']['save_model'])
