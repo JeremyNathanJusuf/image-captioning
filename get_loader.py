@@ -143,6 +143,9 @@ class ImageCaptionDataset(Dataset):
         # Image loading
         img_id = self.imgs[index]
         img = Image.open(os.path.join(self.root_dir, str(img_id)))
+        # Ensure the image has 3 channels
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
         ref_caption = self.ref_captions[index]
         
         # Apply image transformations if provided
