@@ -44,6 +44,7 @@ def train():
         batch_size=batch_size
     )
     vocab_size = len(train_dataset.vocab)
+    print("Vocabulary size:", vocab_size)
 
     accelerator = Accelerator()  # Initialize Accelerator
     device = accelerator.device  # Use accelerator's device
@@ -56,12 +57,13 @@ def train():
         writer = None
     step = 0
 
-    model = CNNtoRNN(embed_size, hidden_size, vocab_size, num_layers).to(device)
+    model = CNNtoRNN(embed_size, hidden_size, vocab_size).to(device)
     # model = CNNAttentionModel(embed_size, vocab_size, num_heads, num_layers, dropout, max_length).to(device)
 
     pad_idx = train_dataset.vocab.stoi['<PAD>']
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
-    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(lr=learning_rate, params=model.parameters())
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.9)
 
     if load_model and accelerator.is_main_process:
         step = load_checkpoint(torch.load("./checkpoints/checkpoint_epoch_60.pth.tar"), model, optimizer)
@@ -87,12 +89,12 @@ def train():
         model.train()
 
         train_loss = 0
-        for idx, (imgs, captions, caption_tokens) in tqdm(
-            enumerate(train_loader), total=len(train_loader), leave=False
-        ):
+        for idx, (imgs, captions, caption_tokens, caption_length) in tqdm(
+            enumerate(train_loader), total=len(train_loader), leave=False):
+            
             imgs = imgs.to(device)
             captions = captions.to(device)
-            
+
             outputs = model(imgs, captions[:, :-1])
             captions = captions[:, 1:]
             loss = criterion(
@@ -122,7 +124,7 @@ def train():
             all_caption_tokens = []
 
             with torch.no_grad():
-                for idx, (imgs, captions, caption_tokens) in tqdm(
+                for idx, (imgs, captions, caption_tokens, caption_length) in tqdm(
                     enumerate(val_loader), total=len(val_loader), leave=False
                 ):
                     imgs = imgs.to(device)
@@ -138,6 +140,7 @@ def train():
                     generated_captions = model.caption_images(imgs, train_dataset.vocab)
                     caption_tokens = [' '.join(tokens) for tokens in caption_tokens]
 
+                    # print("Images: ", imgs)
                     print(f"Predicted: {generated_captions[0]}")
                     print(f"Target: {caption_tokens[0]}")
                     
@@ -151,7 +154,7 @@ def train():
                 val_bleu_score = bleu(
                     predictions=all_pred_tokens,
                     references=all_caption_tokens,
-                    reduce_fn='mean')['bleu']['score']
+                    reduce_fn='mean')['bleu']['precisions'][0]
 
                 val_meteor_score = meteor(
                     predictions=all_pred_tokens,
@@ -176,7 +179,7 @@ def train():
                 print(f"[Validation] loss: {val_loss:.4f} | BLEU: {val_bleu_score:.4f} | "
                       f"METEOR: {val_meteor_score:.4f} | CIDEr: {val_cider_score:.4f}")
 
-            model.train()
+        scheduler.step()
 
         # Checkpoint saving
         if (epoch + 1) % 10 == 0 and save_model and accelerator.is_main_process:

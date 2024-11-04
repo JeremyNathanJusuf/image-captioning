@@ -6,13 +6,13 @@ model:
 attn_model:
   num_heads: 4
   dropout: 0.1
-  max_length: 50
+  max_length: 40
 
 training:
   learning_rate: 0.001
-  num_epochs: 100
+  num_epochs: 50
   num_workers: 2
-  batch_size: 256
+  batch_size: 64
   test_ratio: 0.05
   val_ratio: 0.1
 

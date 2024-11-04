@@ -10,8 +10,7 @@ from sklearn.model_selection import train_test_split
 import yaml
 import nltk
 from nltk.tokenize import word_tokenize
-
-nltk.download("punkt")
+import string
 
 # Configurations
 with open('config.yaml', 'r') as file:
@@ -29,7 +28,7 @@ seed = 42
 # Note that loading the image is very easy compared to the text!
 
 # Download with: python -m spacy download en
-spacy_eng = spacy.load("en_core_web_sm")
+# spacy_eng = spacy.load("en_core_web_sm")
 
 class Vocabulary:
     def __init__(self, freq_threshold):
@@ -42,6 +41,8 @@ class Vocabulary:
         return len(self.itos)
 
     def tokenizer_eng(self, text):
+        text = text.lower().strip().strip("\n")
+        text = "".join([char for char in text if char not in string.punctuation])
         return [tok for tok in self.tokenizer(text)]
 
     def build_vocabulary(self, sentence_list):
@@ -87,16 +88,14 @@ class FlickrDataset(Dataset):
         self.tokenized_captions = []
         self.numericalized_captions = []
         for caption in raw_captions:
-            # Lowercase and strip punctuation
-            clean_caption = caption.lower().strip().strip(".")
             
             # Tokenize the caption
-            tokens = self.vocab.tokenizer_eng(clean_caption)
+            tokens = self.vocab.tokenizer_eng(caption)
             self.tokenized_captions.append(tokens)
             
             # Numericalize the caption with <SOS> and <EOS> tokens
             numericalized = [self.vocab.stoi["<SOS>"]]
-            numericalized += self.vocab.numericalize(clean_caption)
+            numericalized += self.vocab.numericalize(caption)
             numericalized.append(self.vocab.stoi["<EOS>"])
             self.numericalized_captions.append(torch.tensor(numericalized, dtype=torch.long))
 
@@ -133,7 +132,7 @@ class FlickrDataset(Dataset):
         caption_tokens = self.tokenized_captions[index]
 
         # Return the processed image, numericalized caption, and original caption tokens
-        return img, numericalized_caption, caption_tokens
+        return img, numericalized_caption, caption_tokens, len(numericalized_caption)
 
 class MyCollate:
     def __init__(self, pad_idx):
@@ -144,8 +143,9 @@ class MyCollate:
         imgs = torch.cat(imgs, dim=0)
         targets = [item[1] for item in batch]
         caption_tokens = [item[2] for item in batch]  # Collect caption_tokens
+        caption_lengths = [item[3] for item in batch]  # Collect caption lengths
         targets = pad_sequence(targets, batch_first=True, padding_value=self.pad_idx)
-        return imgs, targets, caption_tokens
+        return imgs, targets, caption_tokens, caption_lengths
 
 
 def get_loader(
@@ -154,7 +154,7 @@ def get_loader(
     transform,
     batch_size=32,
     num_workers=8,
-    shuffle=False,
+    shuffle=True,
     pin_memory=True,
 ):
     img_captions = pd.read_csv(annotation_file)
