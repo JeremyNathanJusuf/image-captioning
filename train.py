@@ -37,11 +37,10 @@ save_model = bool(config['checkpoint']['save_model'])
 
 def train():
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
-        root_folder="./flickr8k/Images",
-        annotation_file="./flickr8k/captions.txt",
         transform=transform,
         num_workers=num_workers,
-        batch_size=batch_size
+        batch_size=batch_size,
+        dataset="mscoco"
     )
     vocab_size = len(train_dataset.vocab)
     print("Vocabulary size:", vocab_size)
@@ -87,32 +86,32 @@ def train():
     for epoch in range(num_epochs):
         print(f"[Epoch {epoch+1} / {num_epochs}]")
         
-        # model.train()
-        # train_loss = 0
-        # for idx, (imgs, captions, _) in tqdm(
-        #     enumerate(train_loader), total=len(train_loader), leave=False):
+        model.train()
+        train_loss = 0
+        for idx, (imgs, captions, _) in tqdm(
+            enumerate(train_loader), total=len(train_loader), leave=False):
             
-        #     imgs = imgs.to(device)
-        #     captions = captions.to(device)
+            imgs = imgs.to(device)
+            captions = captions.to(device)
 
-        #     outputs = model(imgs, captions[:, :-1])
-        #     captions = captions[:, 1:]
-        #     loss = criterion(
-        #         outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
-        #     )
+            outputs = model(imgs, captions[:, :-1])
+            captions = captions[:, 1:]
+            loss = criterion(
+                outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
+            )
 
-        #     train_loss += loss.item()
+            train_loss += loss.item()
 
-        #     optimizer.zero_grad()
-        #     accelerator.backward(loss)  # Use accelerator's backward
-        #     optimizer.step()
+            optimizer.zero_grad()
+            accelerator.backward(loss)  # Use accelerator's backward
+            optimizer.step()
 
-        # train_loss /= len(train_loader)
-        # if accelerator.is_main_process:
-        #     train_losses.append(train_loss)
-        #     writer.add_scalar("Training loss", train_loss, global_step=epoch)
+        train_loss /= len(train_loader)
+        if accelerator.is_main_process:
+            train_losses.append(train_loss)
+            writer.add_scalar("Training loss", train_loss, global_step=epoch)
             
-        #     print(f"[Training] loss: {train_loss:.4f}")
+            print(f"[Training] loss: {train_loss:.4f}")
 
         # Evaluation
         if (epoch + 1) % eval_every == 0:

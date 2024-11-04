@@ -1,6 +1,7 @@
 import os  # when loading file paths
 import pandas as pd  # for lookup in annotation file
 import spacy  # for tokenizer
+import json
 import torch
 from torch.nn.utils.rnn import pad_sequence  # pad batch
 from torch.utils.data import DataLoader, Dataset
@@ -41,9 +42,12 @@ class Vocabulary:
         return len(self.itos)
 
     def tokenizer_eng(self, text):
+        # check if text = nan
+        if not text or pd.isnull(text):
+            return []
         text = text.lower().strip().strip("\n")
         text = "".join([char for char in text if char not in string.punctuation])
-        return [tok for tok in self.tokenizer(text)]
+        return [tok for tok in self.tokenizer(text)][:48]
 
     def build_vocabulary(self, sentence_list):
         frequencies = {}
@@ -72,15 +76,27 @@ class Vocabulary:
         ]
 
 class FlickrDataset(Dataset):
-    def __init__(self, root_dir, captions_file, transform=None, freq_threshold=5, max_length=40):
+    def __init__(self, root_dir, captions_file, transform=None, freq_threshold=5, max_length=70):
         self.root_dir = root_dir
         self.df = captions_file
         self.transform = transform
 
+        # remove nan values
+        self.df = self.df.dropna()
+
         # Get img, caption columns
         self.imgs = self.df["image"].tolist()
         raw_captions = self.df["caption"].tolist()
-        self.ref_captions = self.df["caption"].tolist()
+
+        for i in range(len(raw_captions)):
+            for j in range(len(raw_captions[i])):
+                if pd.isnull(raw_captions[i][j]):
+                    raw_captions[i][j] = ""
+                else:
+                    raw_captions[i][j] = raw_captions[i][j].strip().strip("\n")
+                    raw_captions[i][j] = "".join([char for char in raw_captions[i][j] if char not in string.punctuation])
+
+        self.ref_captions = raw_captions
         
         # Initialize vocabulary and build vocab
         self.vocab = Vocabulary(freq_threshold)
@@ -161,26 +177,66 @@ class MyCollate:
 
 
 def get_loader(
-    root_folder,
-    annotation_file,
     transform,
     batch_size=32,
     num_workers=8,
+    dataset='mscoco',
     shuffle=True,
     pin_memory=True,
 ):
-    img_captions = pd.read_csv(annotation_file)
-    img_captions = img_captions.groupby("image").agg(list).reset_index()
-    
-    train_val_img_captions, test_img_captions = train_test_split(
-        img_captions, test_size=test_ratio, random_state=seed
-    )
-    train_img_captions, val_img_captions = train_test_split(
-        train_val_img_captions, test_size=val_ratio, random_state=seed
-    )
-    train_dataset = FlickrDataset(root_folder, train_img_captions, transform=transform)
-    val_dataset = FlickrDataset(root_folder, val_img_captions, transform=transform)
-    test_dataset = FlickrDataset(root_folder, test_img_captions, transform=transform)
+    if dataset =='flickr':
+        root_folder = "./flickr30k/images/"
+        captions_path = "./flickr30k/captions.txt"
+        
+        img_captions = pd.read_csv(captions_path)
+        img_captions = img_captions.groupby("image").agg(list).reset_index()
+        
+        train_val_img_captions, test_img_captions = train_test_split(
+            img_captions, test_size=test_ratio, random_state=seed
+        )
+        train_img_captions, val_img_captions = train_test_split(
+            train_val_img_captions, test_size=val_ratio, random_state=seed
+        )
+        
+        train_dataset = FlickrDataset(root_folder, train_img_captions, transform=transform)
+        val_dataset = FlickrDataset(root_folder, val_img_captions, transform=transform)
+        test_dataset = FlickrDataset(root_folder, test_img_captions, transform=transform)
+        
+    elif dataset == 'mscoco':
+        train_caption_path = './mscoco/annotations/captions_train2014.json'
+        val_test_caption_path = './mscoco/annotations/captions_val2014.json'
+        train_root_folder = './mscoco/train2014/'
+        val_test_root_folder = './mscoco/val2014/'
+        
+        with open(train_caption_path) as f:
+            train_captions = json.load(f)
+             
+        with open(val_test_caption_path) as f:
+            val_test_captions = json.load(f)
+            
+        
+        # Create a list of dictionaries with 'image_id' and 'caption' keys
+        train_img_captions = [{'image': annotation['image_id'], 'caption': annotation['caption']} for annotation in train_captions['annotations']]
+        val_test_img_captions = [{'image': annotation['image_id'], 'caption': annotation['caption']} for annotation in val_test_captions['annotations']]
+        
+        # Create a DataFrame from the list of dictionaries
+        train_img_captions = pd.DataFrame(train_img_captions)
+        val_test_img_captions = pd.DataFrame(val_test_img_captions)
+        
+        train_img_captions = train_img_captions.groupby("image").agg(list).reset_index()
+        val_test_img_captions = val_test_img_captions.groupby("image").agg(list).reset_index()
+
+        val_img_captions, test_img_captions = train_test_split(
+            val_test_img_captions, test_size=val_ratio, random_state=seed
+        )
+        
+        train_dataset = FlickrDataset(train_root_folder, train_img_captions, transform=transform)
+        val_dataset = FlickrDataset(val_test_root_folder, val_img_captions, transform=transform)
+        test_dataset = FlickrDataset(val_test_root_folder, test_img_captions, transform=transform)
+        
+    else:
+        raise ValueError("Invalid dataset. Choose either 'mscoco' or 'flickr'")
+
 
     pad_idx = train_dataset.vocab.stoi["<PAD>"]
 
@@ -211,17 +267,4 @@ def get_loader(
         collate_fn=MyCollate(pad_idx=pad_idx),
     )
     return train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset
-
-
-if __name__ == "__main__":
-    transform = transforms.Compose(
-        [transforms.Resize((224, 224)), transforms.ToTensor(),]
-    )
-
-    loader, dataset = get_loader(
-        "./flickr30k/images/", "./flickr30k/captions.txt", transform=transform
-    )
-
-    for idx, (imgs, captions) in enumerate(loader):
-        print(imgs.shape)
-        print(captions.shape)
+    
