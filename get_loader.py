@@ -75,7 +75,7 @@ class Vocabulary:
             for token in tokenized_text
         ]
 
-class FlickrDataset(Dataset):
+class ImageCaptionDataset(Dataset):
     def __init__(self, root_dir, captions_file, transform=None, freq_threshold=5, max_length=70):
         self.root_dir = root_dir
         self.df = captions_file
@@ -142,7 +142,7 @@ class FlickrDataset(Dataset):
     def __getitem__(self, index):
         # Image loading
         img_id = self.imgs[index]
-        img = Image.open(os.path.join(self.root_dir, img_id))
+        img = Image.open(os.path.join(self.root_dir, str(img_id)))
         ref_caption = self.ref_captions[index]
         
         # Apply image transformations if provided
@@ -198,9 +198,9 @@ def get_loader(
             train_val_img_captions, test_size=val_ratio, random_state=seed
         )
         
-        train_dataset = FlickrDataset(root_folder, train_img_captions, transform=transform)
-        val_dataset = FlickrDataset(root_folder, val_img_captions, transform=transform)
-        test_dataset = FlickrDataset(root_folder, test_img_captions, transform=transform)
+        train_dataset = ImageCaptionDataset(root_folder, train_img_captions, transform=transform)
+        val_dataset = ImageCaptionDataset(root_folder, val_img_captions, transform=transform)
+        test_dataset = ImageCaptionDataset(root_folder, test_img_captions, transform=transform)
         
     elif dataset == 'mscoco':
         train_caption_path = './mscoco/annotations/captions_train2014.json'
@@ -223,6 +223,10 @@ def get_loader(
         train_img_captions = pd.DataFrame(train_img_captions)
         val_test_img_captions = pd.DataFrame(val_test_img_captions)
         
+        # zfill caption by 12 and and jpg
+        train_img_captions['image'] = train_img_captions['image'].apply(lambda x: f"COCO_train2014_{str(x).zfill(12)}.jpg")
+        val_test_img_captions['image'] = val_test_img_captions['image'].apply(lambda x: f"COCO_val2014_{str(x).zfill(12)}.jpg")
+        
         train_img_captions = train_img_captions.groupby("image").agg(list).reset_index()
         val_test_img_captions = val_test_img_captions.groupby("image").agg(list).reset_index()
 
@@ -230,9 +234,9 @@ def get_loader(
             val_test_img_captions, test_size=val_ratio, random_state=seed
         )
         
-        train_dataset = FlickrDataset(train_root_folder, train_img_captions, transform=transform)
-        val_dataset = FlickrDataset(val_test_root_folder, val_img_captions, transform=transform)
-        test_dataset = FlickrDataset(val_test_root_folder, test_img_captions, transform=transform)
+        train_dataset = ImageCaptionDataset(train_root_folder, train_img_captions, transform=transform)
+        val_dataset = ImageCaptionDataset(val_test_root_folder, val_img_captions, transform=transform)
+        test_dataset = ImageCaptionDataset(val_test_root_folder, test_img_captions, transform=transform)
         
     else:
         raise ValueError("Invalid dataset. Choose either 'mscoco' or 'flickr'")

@@ -153,7 +153,7 @@ def train():
                 val_bleu_score = bleu(
                     predictions=all_pred_tokens,
                     references=all_caption_tokens,
-                    reduce_fn='mean')['bleu']['precisions'][0]
+                    reduce_fn='mean')['bleu']['score']
 
                 val_meteor_score = meteor(
                     predictions=all_pred_tokens,
