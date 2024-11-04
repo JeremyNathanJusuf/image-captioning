@@ -49,18 +49,19 @@ class Vocabulary:
         frequencies = {}
         idx = 4
 
-        for sentence in sentence_list:
-            for word in self.tokenizer_eng(sentence):
-                if word not in frequencies:
-                    frequencies[word] = 1
+        for sentences in sentence_list:
+            for sentence in sentences:
+                for word in self.tokenizer_eng(sentence):
+                    if word not in frequencies:
+                        frequencies[word] = 1
 
-                else:
-                    frequencies[word] += 1
+                    else:
+                        frequencies[word] += 1
 
-                if frequencies[word] == self.freq_threshold:
-                    self.stoi[word] = idx
-                    self.itos[idx] = word
-                    idx += 1
+                    if frequencies[word] == self.freq_threshold:
+                        self.stoi[word] = idx
+                        self.itos[idx] = word
+                        idx += 1
 
     def numericalize(self, text):
         tokenized_text = self.tokenizer_eng(text)
@@ -78,42 +79,46 @@ class FlickrDataset(Dataset):
 
         # Get img, caption columns
         self.imgs = self.df["image"].tolist()
-        raw_captions = self.df["caption"].astype(str).tolist()
-
+        raw_captions = self.df["caption"].tolist()
+        self.ref_captions = self.df["caption"].tolist()
+        
         # Initialize vocabulary and build vocab
         self.vocab = Vocabulary(freq_threshold)
         self.vocab.build_vocabulary(raw_captions)
 
         # Preprocess captions: tokenize and numericalize
-        self.tokenized_captions = []
+        # self.tokenized_captions = []
         self.numericalized_captions = []
-        for caption in raw_captions:
+        for captions in raw_captions:
+            caption_list = []
+            for caption in captions:
+                # Tokenize the caption
+                tokens = self.vocab.tokenizer_eng(caption)
+                # self.tokenized_captions.append(tokens)
+                
+                # Numericalize the caption with <SOS> and <EOS> tokens
+                numericalized = [self.vocab.stoi["<SOS>"]]
+                numericalized += self.vocab.numericalize(caption)
+                numericalized.append(self.vocab.stoi["<EOS>"])
+                caption_list.append(numericalized)
             
-            # Tokenize the caption
-            tokens = self.vocab.tokenizer_eng(caption)
-            self.tokenized_captions.append(tokens)
-            
-            # Numericalize the caption with <SOS> and <EOS> tokens
-            numericalized = [self.vocab.stoi["<SOS>"]]
-            numericalized += self.vocab.numericalize(caption)
-            numericalized.append(self.vocab.stoi["<EOS>"])
-            self.numericalized_captions.append(torch.tensor(numericalized, dtype=torch.long))
+            self.numericalized_captions.append(caption_list)
 
         # Sort the dataset based on the length of numericalized_captions
-        self._sort_dataset()
+        # self._sort_dataset()
 
-    def _sort_dataset(self):
-        # Create a list of (index, length) tuples
-        lengths = [(idx, len(caption)) for idx, caption in enumerate(self.numericalized_captions)]
-        # Sort the list based on length
-        sorted_lengths = sorted(lengths, key=lambda x: x[1])
-        # Extract the sorted indices
-        sorted_indices = [idx for idx, length in sorted_lengths]
+    # def _sort_dataset(self):
+    #     # Create a list of (index, length) tuples
+    #     lengths = [(idx, len(caption)) for idx, caption in enumerate(self.numericalized_captions)]
+    #     # Sort the list based on length
+    #     sorted_lengths = sorted(lengths, key=lambda x: x[1])
+    #     # Extract the sorted indices
+    #     sorted_indices = [idx for idx, length in sorted_lengths]
         
-        # Reorder the datasets
-        self.imgs = [self.imgs[idx] for idx in sorted_indices]
-        self.numericalized_captions = [self.numericalized_captions[idx] for idx in sorted_indices]
-        self.tokenized_captions = [self.tokenized_captions[idx] for idx in sorted_indices]
+    #     # Reorder the datasets
+    #     self.imgs = [self.imgs[idx] for idx in sorted_indices]
+    #     self.numericalized_captions = [self.numericalized_captions[idx] for idx in sorted_indices]
+    #     self.tokenized_captions = [self.tokenized_captions[idx] for idx in sorted_indices]
 
     def __len__(self):
         return len(self.df)
@@ -122,17 +127,24 @@ class FlickrDataset(Dataset):
         # Image loading
         img_id = self.imgs[index]
         img = Image.open(os.path.join(self.root_dir, img_id))
-
+        ref_caption = self.ref_captions[index]
+        
         # Apply image transformations if provided
         if self.transform is not None:
             img = self.transform(img)
 
         # Retrieve preprocessed numericalized caption and tokens
         numericalized_caption = self.numericalized_captions[index]
-        caption_tokens = self.tokenized_captions[index]
+        # caption_tokens = self.tokenized_captions[index]
+        
+        length = len(numericalized_caption)
+        # sample the caption
+        caption_idx = torch.randint(0, length, (1,)).item()
+        numericalized_caption = numericalized_caption[caption_idx]
+        # caption_tokens = caption_tokens[caption_idx]
 
         # Return the processed image, numericalized caption, and original caption tokens
-        return img, numericalized_caption, caption_tokens, len(numericalized_caption)
+        return img, numericalized_caption, ref_caption
 
 class MyCollate:
     def __init__(self, pad_idx):
@@ -141,11 +153,11 @@ class MyCollate:
     def __call__(self, batch):
         imgs = [item[0].unsqueeze(0) for item in batch]
         imgs = torch.cat(imgs, dim=0)
-        targets = [item[1] for item in batch]
-        caption_tokens = [item[2] for item in batch]  # Collect caption_tokens
-        caption_lengths = [item[3] for item in batch]  # Collect caption lengths
+        targets = [torch.tensor(item[1]) for item in batch]
+        # caption_tokens = [item[2] for item in batch]  # Collect caption_tokens
+        ref_caption = [item[2] for item in batch]  # Collect caption lengths
         targets = pad_sequence(targets, batch_first=True, padding_value=self.pad_idx)
-        return imgs, targets, caption_tokens, caption_lengths
+        return imgs, targets, ref_caption
 
 
 def get_loader(
@@ -158,6 +170,8 @@ def get_loader(
     pin_memory=True,
 ):
     img_captions = pd.read_csv(annotation_file)
+    img_captions = img_captions.groupby("image").agg(list).reset_index()
+    
     train_val_img_captions, test_img_captions = train_test_split(
         img_captions, test_size=test_ratio, random_state=seed
     )
