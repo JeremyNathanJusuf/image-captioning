@@ -7,7 +7,7 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from utils import save_checkpoint, load_checkpoint, transform
 from get_loader import get_loader
-from attn_model import JoshNameThisModel
+from attn_model import CNNAttentionModel
 from nlgmetricverse import NLGMetricverse, load_metric
 import yaml
 

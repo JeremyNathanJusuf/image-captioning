@@ -7,23 +7,26 @@ class EncoderCNN(nn.Module):
     def __init__(self, embed_size):
         super(EncoderCNN, self).__init__()
         self.inception = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT, aux_logits=True)
-        self.inception.fc = nn.Linear(self.inception.fc.in_features, embed_size)
 
+        # Get the number of input features for the fc layer
+        in_features = self.inception.fc.in_features
+        
+        # Remove the fc layer from the inception model
+        self.inception.fc = nn.Identity()
+        
+        # Define a separate fc layer
+        self.fc = nn.Linear(in_features, embed_size)
+
+        # Freeze all parameters in inception model
         for param in self.inception.parameters():
             param.requires_grad = False
-        
-        for param in self.inception.fc.parameters():
-            param.requires_grad = True
 
-    def forward(self, images, is_training=True):
-        if is_training:
-            features = self.inception(images).logits
-
-        else:
-            self.inception.eval()  
-            with torch.no_grad():
-                features = self.inception(images)
- 
+    def forward(self, images):
+        with torch.no_grad():
+            features = self.inception(images)
+        if hasattr(features, "logits"):
+            features = features.logits
+        features = self.fc(features)
         return features
 
 class MultiHeadAttention(nn.Module):
@@ -111,27 +114,27 @@ class DecoderLayer(nn.Module):
         x = self.norm3(x + self.dropout(ff_output))
         return x
 
-class JoshNameThisModel(nn.Module):
+class CNNAttentionModel(nn.Module):
     def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout, max_seq_length):
-        super(JoshNameThisModel, self).__init__()
+        super(CNNAttentionModel, self).__init__()
         self.encoderCNN = EncoderCNN(embed_size)
         self.decoder_layers = nn.ModuleList([DecoderLayer(embed_size, num_heads, embed_size, dropout) for _ in range(num_layers)])
         self.positional_encoding = PositionalEncoding(embed_size, max_seq_length)
         self.fc = nn.Linear(embed_size, vocab_size)
         self.dropout = nn.Dropout(dropout)
         self.decoder_embedding = nn.Embedding(vocab_size, embed_size)
-        self.softmax = nn.Softmax(dim=2)
+        # self.softmax = nn.Softmax(dim=2)
         
     def generate_mask(self, src, tgt):
         src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
         tgt_mask = (tgt != 0).unsqueeze(1).unsqueeze(3)
         seq_length = tgt.size(1)
-        nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool()
+        nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool().to(tgt.device)
         tgt_mask = tgt_mask & nopeak_mask
         return src_mask, tgt_mask
     
-    def forward(self, images, captions, is_training=True):
-        enc_output = self.encoderCNN(images, is_training)
+    def forward(self, images, captions):
+        enc_output = self.encoderCNN(images)
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(captions)))
         enc_output = enc_output.unsqueeze(1)
         enc_output = enc_output.expand(-1, tgt_embedded.size(1), -1) 
@@ -142,7 +145,7 @@ class JoshNameThisModel(nn.Module):
             dec_output = dec_layer(dec_output, enc_output, src_mask, tgt_mask)
 
         output = self.fc(dec_output)
-        output = self.softmax(output)
+        # output = self.softmax(output)
         # print("dec output:", output.size())
         return output
         

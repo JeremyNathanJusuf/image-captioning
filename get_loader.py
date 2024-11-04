@@ -8,6 +8,10 @@ from PIL import Image  # Load img
 import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 import yaml
+import nltk
+from nltk.tokenize import word_tokenize
+
+nltk.download("punkt")
 
 # Configurations
 with open('config.yaml', 'r') as file:
@@ -32,13 +36,13 @@ class Vocabulary:
         self.itos = {0: "<PAD>", 1: "<SOS>", 2: "<EOS>", 3: "<UNK>"}
         self.stoi = {"<PAD>": 0, "<SOS>": 1, "<EOS>": 2, "<UNK>": 3}
         self.freq_threshold = freq_threshold
+        self.tokenizer = word_tokenize
 
     def __len__(self):
         return len(self.itos)
 
-    @staticmethod
-    def tokenizer_eng(text):
-        return [tok.text.lower() for tok in spacy_eng.tokenizer(text)]
+    def tokenizer_eng(self, text):
+        return [tok for tok in self.tokenizer(text)]
 
     def build_vocabulary(self, sentence_list):
         frequencies = {}
@@ -66,7 +70,7 @@ class Vocabulary:
         ]
 
 class FlickrDataset(Dataset):
-    def __init__(self, root_dir, captions_file, transform=None, freq_threshold=5):
+    def __init__(self, root_dir, captions_file, transform=None, freq_threshold=5, max_length=40):
         self.root_dir = root_dir
         self.df = captions_file
         self.transform = transform
@@ -118,7 +122,7 @@ class FlickrDataset(Dataset):
     def __getitem__(self, index):
         # Image loading
         img_id = self.imgs[index]
-        img = Image.open(os.path.join(self.root_dir, img_id)).convert("RGB")
+        img = Image.open(os.path.join(self.root_dir, img_id))
 
         # Apply image transformations if provided
         if self.transform is not None:
