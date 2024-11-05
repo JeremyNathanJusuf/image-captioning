@@ -124,12 +124,12 @@ class DecoderLayer(nn.Module):
         return x
 
 class CNNAttentionModel(nn.Module):
-    def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout, max_seq_length):
+    def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.2, max_seq_length=50):
         super(CNNAttentionModel, self).__init__()
         self.encoderCNN = EncoderCNN(embed_size)
 
         self.fc1 = nn.Linear(2048, embed_size, bias = False)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout)
         self.batchnorm = nn.BatchNorm1d(embed_size)
 
         self.decoder_layers = nn.ModuleList([DecoderLayer(embed_size, num_heads, embed_size, dropout) for _ in range(num_layers)])

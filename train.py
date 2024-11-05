@@ -18,29 +18,32 @@ from attn_model import CNNAttentionModel
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
-embed_size = int(config['model']['embed_size'])
-hidden_size = int(config['model']['hidden_size'])
-num_layers = int(config['model']['num_layers'])
-
-num_heads = int(config['attn_model']['num_heads'])
-dropout = float(config['attn_model']['dropout'])
-max_length = int(config['attn_model']['max_length'])
-
 learning_rate = float(config['training']['learning_rate'])
 num_epochs = int(config['training']['num_epochs'])
 num_workers = int(config['training']['num_workers'])
 batch_size = int(config['training']['batch_size'])
+step_size = int(config['training']['step_size'])
+gamma = float(config['training']['gamma'])
+model_arch = config['training']['model_arch']
+dataset = config['training']['dataset']
 
-load_model = bool(config['checkpoint']['load_model'])
-save_model = bool(config['checkpoint']['save_model'])
+if 'rnn_model' in config:
+    rnn_embed_size = int(config['rnn_model']['embed_size'])
+    rnn_hidden_size = int(config['rnn_model']['hidden_size'])
+
+if 'attn_model' in config:
+    attn_embed_size = int(config['attn_model']['embed_size'])
+    attn_num_layers = int(config['attn_model']['num_layers'])
+    attn_num_heads = int(config['attn_model']['num_heads'])
 
 
-def train():
+def train(model_arch=model_arch, dataset=dataset):
+
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
         num_workers=num_workers,
         batch_size=batch_size,
-        dataset="mscoco"
+        dataset=dataset
     )
     vocab_size = len(train_dataset.vocab)
     print("Vocabulary size:", vocab_size)
@@ -51,31 +54,35 @@ def train():
 
     # Initialize SummaryWriter only on the main process
     if accelerator.is_main_process:
-        writer = SummaryWriter("runs/flickr")
+        if not os.path.exists(f"runs/{dataset}/{model_arch}"):
+            os.makedirs(f"runs/{dataset}/{model_arch}")
+        writer = SummaryWriter(f"runs/{dataset}/{model_arch}")
     else:
         writer = None
     step = 0
 
-    # model = CNNtoRNN(embed_size, hidden_size, vocab_size).to(device)
-    model = CNNAttentionModel(embed_size, vocab_size, num_heads, num_layers, dropout, max_length).to(device)
-
+    if model_arch == "cnn-rnn":
+        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
+    elif model_arch == "cnn_attn":
+        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+    else:
+        raise ValueError("Model not recognized")
+    print(model)
+    
     pad_idx = train_dataset.vocab.stoi['<PAD>']
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
     optimizer = optim.Adam(lr=learning_rate, params=model.parameters())
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.9)
-
-    if load_model and accelerator.is_main_process:
-        step = load_checkpoint(torch.load("./checkpoints/checkpoint_epoch_60.pth.tar"), model, optimizer)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.8)
 
     # Prepare everything with accelerator
     model, optimizer, train_loader, val_loader = accelerator.prepare(
         model, optimizer, train_loader, val_loader
     )
 
-    train_losses, val_losses = [], []
-    train_bleus, val_bleus = [], []
-    train_meteors, val_meteors = [], []
-    train_ciders, val_ciders = [], []
+    train_losses = []
+    val_bleus = [], []
+    val_meteors = [], []
+    val_ciders = [], []
 
     bleu = NLGMetricverse(metrics=load_metric("bleu"))
     meteor = NLGMetricverse(metrics=load_metric("meteor"))
@@ -137,14 +144,13 @@ def train():
                     # val_loss += loss.item()
 
                     generated_captions = model.caption_images(imgs, train_dataset.vocab)
-                    caption_tokens = ref_captions
 
                     # print("Images: ", imgs)
                     print(f"Predicted: {generated_captions[0]}")
-                    print(f"Target: {caption_tokens[0]}")
+                    print(f"Target: {ref_captions[0]}")
                     
                     all_pred_tokens.extend(generated_captions)
-                    all_caption_tokens.extend(caption_tokens)
+                    all_caption_tokens.extend(ref_captions)
                     
 
             # val_loss /= len(val_loader)
@@ -180,25 +186,29 @@ def train():
         scheduler.step()
 
         # Checkpoint saving
-        if (epoch + 1) % 10 == 0 and save_model and accelerator.is_main_process:
+        if (epoch + 1) % 10 == 0 and accelerator.is_main_process:
             checkpoint = {
                 "state_dict": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "step": step,
             }
-            filename = f"./checkpoints/checkpoint_epoch_{epoch + 1}.pth.tar"
+            if not os.path.exists(f"./checkpoints/{model_arch}/{dataset}"):
+                os.makedirs(f"./checkpoints/{model_arch}/{dataset}")
+            filename = f"./checkpoints/{model_arch}/{dataset}/checkpoint_epoch_{epoch + 1}.pth.tar"
             save_checkpoint(checkpoint, filename)
 
             metrics = {
                 'train_losses': train_losses,
-                'val_losses': val_losses,
+                # 'val_losses': val_losses,
                 'val_bleus': val_bleus,
                 'val_meteors': val_meteors,
                 'val_ciders': val_ciders
             }
 
             # Save metrics to a JSON file
-            metrics_file_path = f'./metric_logs/train_val_to_epoch_{epoch+1}.json'
+            if not os.path.exists(f'./metric_logs/{model_arch}/{dataset}'):
+                os.makedirs(f'./metric_logs/{model_arch}/{dataset}')
+            metrics_file_path = f'./metric_logs/{model_arch}/{dataset}/train_val_to_epoch_{epoch+1}.json'
             os.makedirs(os.path.dirname(metrics_file_path), exist_ok=True)
             with open(metrics_file_path, 'w') as json_file:
                 json.dump(metrics, json_file, indent=4)
