@@ -56,8 +56,8 @@ def train():
         writer = None
     step = 0
 
-    model = CNNtoRNN(embed_size, hidden_size, vocab_size).to(device)
-    # model = CNNAttentionModel(embed_size, vocab_size, num_heads, num_layers, dropout, max_length).to(device)
+    # model = CNNtoRNN(embed_size, hidden_size, vocab_size).to(device)
+    model = CNNAttentionModel(embed_size, vocab_size, num_heads, num_layers, dropout, max_length).to(device)
 
     pad_idx = train_dataset.vocab.stoi['<PAD>']
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
@@ -126,15 +126,15 @@ def train():
                 for idx, (imgs, captions, ref_captions) in tqdm(
                     enumerate(val_loader), total=len(val_loader), leave=False
                 ):
-                    imgs = imgs.to(device)
-                    captions = captions.to(device)
+                    # imgs = imgs.to(device)
+                    # captions = captions.to(device)
 
-                    outputs = model(imgs, captions[:, :-1])
-                    captions = captions[:, 1:]
-                    loss = criterion(
-                        outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
-                    )
-                    val_loss += loss.item()
+                    # outputs = model(imgs, captions[:, :-1])
+                    # captions = captions[:, 1:]
+                    # loss = criterion(
+                    #     outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
+                    # )
+                    # val_loss += loss.item()
 
                     generated_captions = model.caption_images(imgs, train_dataset.vocab)
                     caption_tokens = ref_captions
@@ -147,7 +147,7 @@ def train():
                     all_caption_tokens.extend(caption_tokens)
                     
 
-            val_loss /= len(val_loader)
+            # val_loss /= len(val_loader)
             if accelerator.is_main_process:
                 # Compute metrics on the main process
                 val_bleu_score = bleu(
@@ -165,18 +165,17 @@ def train():
                     references=all_caption_tokens,
                     reduce_fn='mean')['cider']['score']
 
-                val_losses.append(val_loss)
+                # val_losses.append(val_loss)
                 val_bleus.append(val_bleu_score)
                 val_meteors.append(val_meteor_score)
                 val_ciders.append(val_cider_score)
 
-                writer.add_scalar("Validation loss", val_loss, global_step=epoch)
+                # writer.add_scalar("Validation loss", val_loss, global_step=epoch)
                 writer.add_scalar("Validation BLEU", val_bleu_score, global_step=epoch)
                 writer.add_scalar("Validation METEOR", val_meteor_score, global_step=epoch)
                 writer.add_scalar("Validation CIDEr", val_cider_score, global_step=epoch)
 
-                print(f"[Validation] loss: {val_loss:.4f} | BLEU: {val_bleu_score:.4f} | "
-                      f"METEOR: {val_meteor_score:.4f} | CIDEr: {val_cider_score:.4f}")
+                print(f"BLEU: {val_bleu_score:.4f} | METEOR: {val_meteor_score:.4f} | CIDEr: {val_cider_score:.4f}")
 
         scheduler.step()
 

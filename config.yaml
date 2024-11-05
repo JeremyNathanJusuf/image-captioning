@@ -4,9 +4,9 @@ model:
   num_layers: 1
 
 attn_model:
-  num_heads: 4
-  dropout: 0.1
-  max_length: 40
+  num_heads: 8
+  dropout: 0.5
+  max_length: 50
 
 training:
   learning_rate: 0.001

@@ -6,27 +6,36 @@ import math
 class EncoderCNN(nn.Module):
     def __init__(self, embed_size):
         super(EncoderCNN, self).__init__()
-        self.inception = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT, aux_logits=True)
-
-        # Get the number of input features for the fc layer
-        in_features = self.inception.fc.in_features
+        # Initialize the InceptionV3 model with pretrained weights
+        self.inception = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT)
         
-        # Remove the fc layer from the inception model
-        self.inception.fc = nn.Identity()
-        
-        # Define a separate fc layer
-        self.fc = nn.Linear(in_features, embed_size)
+        # Dictionary to store activation from the desired layer
+        self.activation = {}
 
-        # Freeze all parameters in inception model
-        for param in self.inception.parameters():
-            param.requires_grad = False
+        # Register forward hook on the Mixed_7c layer to capture features
+        self.inception.Mixed_7c.register_forward_hook(self.get_activation("Mixed_7c"))
+
+        # Pooling layer to convert the feature map to 1x1
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+
+    def get_activation(self, name):
+        # Helper function to store activation from the hook
+        def hook(model, input, output):
+            self.activation[name] = output
+        return hook
 
     def forward(self, images):
-        with torch.no_grad():
-            features = self.inception(images)
-        if hasattr(features, "logits"):
-            features = features.logits
-        features = self.fc(features)
+        # Forward pass through InceptionV3
+        _ = self.inception(images)  # Just to trigger the forward hook on Mixed_7c
+        
+        # Get features from the activation dictionary
+        features = self.activation["Mixed_7c"]
+        
+        # Apply global average pooling
+        features = self.pool(features)
+        
+        # Flatten and pass through the fully connected layer
+        features = features.view(features.size(0), -1)  # Flatten to [batch_size, 2048]        
         return features
 
 class MultiHeadAttention(nn.Module):
@@ -118,9 +127,14 @@ class CNNAttentionModel(nn.Module):
     def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout, max_seq_length):
         super(CNNAttentionModel, self).__init__()
         self.encoderCNN = EncoderCNN(embed_size)
+
+        self.fc1 = nn.Linear(2048, embed_size, bias = False)
+        self.dropout = nn.Dropout(0.5)
+        self.batchnorm = nn.BatchNorm1d(embed_size)
+
         self.decoder_layers = nn.ModuleList([DecoderLayer(embed_size, num_heads, embed_size, dropout) for _ in range(num_layers)])
         self.positional_encoding = PositionalEncoding(embed_size, max_seq_length)
-        self.fc = nn.Linear(embed_size, vocab_size)
+        self.fc2 = nn.Linear(embed_size, vocab_size)
         self.dropout = nn.Dropout(dropout)
         self.decoder_embedding = nn.Embedding(vocab_size, embed_size)
         # self.softmax = nn.Softmax(dim=2)
@@ -134,7 +148,12 @@ class CNNAttentionModel(nn.Module):
         return src_mask, tgt_mask
     
     def forward(self, images, captions):
-        enc_output = self.encoderCNN(images)
+        with torch.no_grad():
+            enc_output = self.encoderCNN(images)
+        enc_output = self.fc1(enc_output)
+        enc_output = self.dropout(enc_output)
+        enc_output = self.batchnorm(enc_output)
+
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(captions)))
         enc_output = enc_output.unsqueeze(1)
         enc_output = enc_output.expand(-1, tgt_embedded.size(1), -1) 
@@ -144,9 +163,64 @@ class CNNAttentionModel(nn.Module):
         for dec_layer in self.decoder_layers:
             dec_output = dec_layer(dec_output, enc_output, src_mask, tgt_mask)
 
-        output = self.fc(dec_output)
+        output = self.fc2(dec_output)
         # output = self.softmax(output)
         # print("dec output:", output.size())
         return output
         
-        
+    def caption_images(self, images, vocabulary, max_length=40):
+        self.eval()
+        with torch.no_grad():
+            # Encode the image
+            enc_output = self.encoderCNN(images)
+            enc_output = self.fc1(enc_output)
+            enc_output = self.dropout(enc_output)
+            enc_output = self.batchnorm(enc_output)
+            enc_output = enc_output.unsqueeze(1)  # Expand dimensions for transformer input
+
+            # Initialize the caption with the <SOS> token
+            batch_size = images.size(0)
+            caption = torch.full((batch_size, 1), vocabulary.stoi["<SOS>"], device=images.device)
+
+            # Prepare list to hold generated captions for each image in batch
+            result_captions = [[] for _ in range(batch_size)]
+            done = [False] * batch_size
+
+            # Iterate to generate each word
+            for _ in range(max_length):
+                # Embed the current sequence and apply positional encoding
+                tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(caption)))
+
+                # Generate masks
+                src_mask, tgt_mask = self.generate_mask(enc_output, caption)
+
+                # Pass through decoder layers
+                dec_output = tgt_embedded
+                for layer in self.decoder_layers:
+                    dec_output = layer(dec_output, enc_output, src_mask, tgt_mask)
+
+                # Get the last token output for prediction
+                output = self.fc2(dec_output[:, -1, :])  # Shape: (batch_size, vocab_size)
+
+                # Select the token with the highest probability
+                predicted = output.argmax(dim=-1)
+
+                # Append the predicted token to each caption
+                for i in range(batch_size):
+                    if not done[i]:  # Only proceed if caption generation is not complete
+                        token = vocabulary.itos[predicted[i].item()]
+                        if token == "<EOS>":
+                            done[i] = True
+                        else:
+                            result_captions[i].append(predicted[i].item())
+
+                # If all captions are complete, exit early
+                if all(done):
+                    break
+
+                # Update the input sequence with the predicted tokens for the next iteration
+                caption = torch.cat([caption, predicted.unsqueeze(1)], dim=1)
+
+        # Convert the list of token indices to words
+        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
+        return captions_text
