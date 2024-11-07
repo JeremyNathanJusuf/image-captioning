@@ -166,7 +166,7 @@ class CNNtoRNN(nn.Module):
                            (states[0][:, batch_idx, :], states[1][:, batch_idx, :])
                         )] for batch_idx in range(batch_size)]  # (sequence, score, states)
 
-            for _ in range(max_length):
+            for length in range(max_length):
                 all_candidates = [[] for _ in range(batch_size)]
                 
                 for batch_idx in range(batch_size):
@@ -193,7 +193,12 @@ class CNNtoRNN(nn.Module):
                             if pred_token == vocabulary.stoi["<EOS>"]:
                                 done[batch_idx][i] = True
                                 
-                            candidate = (seq + [pred_token], score + top_log_probs[0][i].item(), states)
+                            candidate = (
+                                seq + [pred_token], 
+                                # (score*length + top_log_probs[0][i].item())/(length+1),
+                                score + top_log_probs[0][i].item(),
+                                states
+                            )
                             all_candidates[batch_idx].append(candidate)
                 
                 terminate = False

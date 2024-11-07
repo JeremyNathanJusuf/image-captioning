@@ -13,14 +13,14 @@ training:
   test_ratio: 0.05
   
   # model settings
-  model_arch: 'cnn-rnn' # 'cnn-rnn' or 'cnn-attn'
+  model_arch: 'cnn-attn' # 'cnn-rnn' or 'cnn-attn'
   dataset: 'mscoco' # 'mscoco' or 'flickr'
   inference_type: 'beam' # 'greedy' or 'beam'
   beam_width: 3
 
   # save and load checkpoints
   save_model: false
-  load_model: true
+  load_model: false
   checkpoint_dir: './checkpoints/checkpoint_epoch_50.pth.tar'
 
 # specify the model hyperparameters

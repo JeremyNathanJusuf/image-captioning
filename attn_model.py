@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.models as models
 import math
 
@@ -223,4 +224,73 @@ class CNNAttentionModel(nn.Module):
 
         # Convert the list of token indices to words
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
+        return captions_text
+
+    def caption_images_beam_search(self, images, vocabulary, beam_width=20, max_length=40):
+        self.eval()
+        with torch.no_grad():
+            # Encode the image
+            enc_output = self.encoderCNN(images)
+            enc_output = self.fc1(enc_output)
+            enc_output = self.dropout(enc_output)
+            enc_output = self.batchnorm(enc_output)
+            enc_output = enc_output.unsqueeze(1)  # Expand dimensions for transformer input
+
+            # Initialize the caption with the <SOS> token
+            batch_size = images.size(0)
+            
+            done = [[False]*beam_width for _ in range(batch_size)]
+            sequences = [[([vocabulary.stoi["<SOS>"]], 0.0, 
+                        )] for batch_idx in range(batch_size)]  # (sequence, score)
+
+            for length in range(max_length):
+                all_candidates = [[] for _ in range(batch_size)]
+                
+                for batch_idx in range(batch_size):
+                    candidates = sequences[batch_idx]
+                    
+                    if all(done[batch_idx]):
+                        all_candidates[batch_idx] = candidates
+                        continue
+                    
+                    for seq, score in candidates:
+                        if seq[-1] == vocabulary.stoi["<EOS>"]:
+                            all_candidates[batch_idx].append((seq, score))
+                            continue
+                        
+                        tensor_seq = torch.tensor([seq], device=images.device)
+                        tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tensor_seq)))
+                        src_mask, tgt_mask = self.generate_mask(enc_output, tensor_seq)
+                        
+                        dec_output = tgt_embedded
+                        for layer in self.decoder_layers:
+                            dec_output = layer(dec_output, enc_output, src_mask, tgt_mask)
+                        
+                        output = self.fc2(dec_output[:, -1, :]) # Shape: (batch_size, vocab_size)
+                        log_probs = F.log_softmax(output, dim=-1)
+                        top_log_probs, top_tokens = log_probs.topk(beam_width, dim=-1)
+
+                        for i in range(beam_width):
+                            pred_token = top_tokens[0][i].item()
+                            if pred_token == vocabulary.stoi["<EOS>"]:
+                                done[batch_idx][i] = True
+                                
+                            candidate = (
+                                seq + [pred_token], 
+                                # (score*length + top_log_probs[0][i].item())/(length+1),
+                                score + top_log_probs[0][i].item()
+                            )
+                            all_candidates[batch_idx].append(candidate)
+                
+                terminate = False
+                for batch_idx in range(batch_size):
+                    ordered = sorted(all_candidates[batch_idx], key=lambda x: x[1], reverse=True)
+                    sequences[batch_idx] = ordered[:beam_width]
+                    terminate = terminate or all(done[batch_idx])
+                    
+                if terminate:
+                    break
+
+        result_captions = [seq[0][0] for seq in sequences]
+        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption[1:-1]]) for caption in result_captions]
         return captions_text
