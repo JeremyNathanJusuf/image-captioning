@@ -97,9 +97,7 @@ class CNNtoRNN(nn.Module):
     def caption_images(self, images, vocabulary, max_length=40):
         self.eval()
         batch_size = images.size(0)  # Get the batch size from images
-        result_captions = [[] for _ in range(batch_size)]  # Initialize captions list for each image in the batch
-        done = [False] * batch_size  # Tracks completion for each item in the batch
-
+        
         with torch.no_grad():
             # Encode all images in the batch
             img_features = self.encoderCNN(images)  # img_features shape: (batch_size, feature_dim)
@@ -110,38 +108,44 @@ class CNNtoRNN(nn.Module):
 
             # Initialize LSTM states with the encoded image features
             _, states = self.decoderRNN.lstm(img_features)
-
-            # Initialize the first input with <SOS> token for each batch item
-            first_inputs = torch.full((batch_size,), vocabulary.stoi["<SOS>"], device=images.device)
-            emb = self.decoderRNN.embed(first_inputs)  # Embedding shape: (batch_size, embed_size)
-
             
-            for i in range(max_length):
-                output, states = self.decoderRNN.lstm(emb.unsqueeze(1), states)  # LSTM step for the whole batch
-                output = self.decoderRNN.fc2(self.decoderRNN.dropout(output.squeeze(1)))  # Shape: (batch_size, vocab_size)
+            beam_width = 3
+            done = [False] * batch_size
+            sequences = [[([vocabulary.stoi["<SOS>"]], 0.0, 
+                           (states[0][:, batch_idx, :], states[1][:, batch_idx, :])
+                        )] for batch_idx in range(batch_size)]  # (sequence, score, states)
 
-                # Apply log softmax to get log probabilities
-                log_probs = F.log_softmax(output, dim=-1)  # Shape: (batch_size, vocab_size)
+            for _ in range(max_length):
+                all_candidates = [[] for _ in range(batch_size)]
+                
+                for batch_idx in range(batch_size):
+                    if done[batch_idx]:
+                        all_candidates[batch_idx].extend(sequences[batch_idx])
+                        continue
 
-                # Select the highest probability token for each item in the batch
-                predicted = log_probs.argmax(dim=-1)  # Shape: (batch_size)
+                    candidates = sequences[batch_idx]
+                    for seq, score, states in candidates:
+                        embedding = self.decoderRNN.embed(torch.tensor([seq[-1]], device=images.device))
+                        output, states = self.decoderRNN.lstm(embedding, states)
+                        
+                        output = self.decoderRNN.fc2(self.decoderRNN.dropout(output.squeeze(1)))
+                        log_probs = F.log_softmax(output, dim=-1)
+                        top_log_probs, top_tokens = log_probs.topk(beam_width, dim=-1)
 
-                # Append the predicted token to each corresponding caption in the batch
-                for i in range(batch_size):
-                    if not done[i]:  # Only proceed if the caption is not yet marked as done
-                        token = vocabulary.itos[predicted[i].item()]
-                        if token == "<EOS>":
-                            done[i] = True  # Mark this sequence as complete
-                        else:
-                            result_captions[i].append(predicted[i].item())
+                        for i in range(beam_width):
+                            pred_token = top_tokens[0][i].item()
+                            candidate = (seq + [pred_token], score + top_log_probs[0][i].item(), states)
+                            all_candidates[batch_idx].append(candidate)
 
-                # If all items are done, break early
+                for batch_idx in range(batch_size):
+                    ordered = sorted(all_candidates[batch_idx], key=lambda x: x[1], reverse=True)
+                    sequences[batch_idx] = ordered[:beam_width]
+                    if sequences[batch_idx][0][0][-1] == vocabulary.stoi["<EOS>"]:
+                        done[batch_idx] = True
+
                 if all(done):
                     break
 
-                # Update the embeddings with the latest predictions for the next step
-                emb = self.decoderRNN.embed(predicted)  # Shape: (batch_size, embed_size)
-
-        # Convert token indices to words for each caption in the batch
-        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
+        result_captions = [seq[0][0] for seq in sequences]
+        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption[1:-1]]) for caption in result_captions]
         return captions_text
