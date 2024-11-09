@@ -125,7 +125,7 @@ class DecoderLayer(nn.Module):
         return x
 
 class CNNAttentionModel(nn.Module):
-    def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.2, max_seq_length=50):
+    def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.1, max_seq_length=50):
         super(CNNAttentionModel, self).__init__()
         self.encoderCNN = EncoderCNN(embed_size)
 
@@ -169,7 +169,7 @@ class CNNAttentionModel(nn.Module):
         # print("dec output:", output.size())
         return output
         
-    def caption_images(self, images, vocabulary, max_length=40):
+    def caption_images(self, images, vocabulary, max_length=50):
         self.eval()
         with torch.no_grad():
             # Encode the image
@@ -226,7 +226,7 @@ class CNNAttentionModel(nn.Module):
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text
 
-    def caption_images_beam_search(self, images, vocabulary, beam_width=20, max_length=40):
+    def caption_images_beam_search(self, images, vocabulary, beam_width=3, max_length=50):
         self.eval()
         with torch.no_grad():
             # Encode the image
@@ -292,5 +292,5 @@ class CNNAttentionModel(nn.Module):
                     break
 
         result_captions = [seq[0][0] for seq in sequences]
-        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption[1:-1]]) for caption in result_captions]
+        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text

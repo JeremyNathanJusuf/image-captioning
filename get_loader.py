@@ -93,7 +93,7 @@ class ImageCaptionDataset(Dataset):
                 if pd.isnull(raw_captions[i][j]):
                     raw_captions[i][j] = ""
                 else:
-                    raw_captions[i][j] = raw_captions[i][j].strip().strip("\n")
+                    raw_captions[i][j] = raw_captions[i][j].lower().strip().strip("\n")
                     raw_captions[i][j] = "".join([char for char in raw_captions[i][j] if char not in string.punctuation])
 
         self.ref_captions = raw_captions
