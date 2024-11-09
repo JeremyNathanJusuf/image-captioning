@@ -13,6 +13,7 @@ from nlgmetricverse import NLGMetricverse, load_metric
 
 from model import CNNtoRNN
 from attn_model import CNNAttentionModel
+from yolo_vae_model import YOLOVAEAttentionModel
 
 # Configurations
 with open('config.yaml', 'r') as file:
@@ -40,6 +41,11 @@ if 'attn_model' in config:
     attn_embed_size = int(config['attn_model']['embed_size'])
     attn_num_layers = int(config['attn_model']['num_layers'])
     attn_num_heads = int(config['attn_model']['num_heads'])
+
+if 'yolovae_attn_model' in config:
+    yolovae_embed_size = int(config['yolovae_attn_model']['embed_size'])
+    yolovae_num_layers = int(config['yolovae_attn_model']['num_layers'])
+    yolovae_num_heads = int(config['yolovae_attn_model']['num_heads'])
 
 
 def train(model_arch=model_arch, dataset=dataset):
@@ -69,6 +75,8 @@ def train(model_arch=model_arch, dataset=dataset):
         model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
     elif model_arch == "cnn-attn":
         model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+    elif model_arch == "yolovae-attn":
+        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
     else:
         raise ValueError("Model not recognized")
     
@@ -100,32 +108,32 @@ def train(model_arch=model_arch, dataset=dataset):
     for epoch in range(num_epochs):
         print(f"[Epoch {epoch+1} / {num_epochs}]")
         
-        # model.train()
-        # train_loss = 0
-        # for idx, (imgs, captions, _) in tqdm(
-        #     enumerate(train_loader), total=len(train_loader), leave=False):
+        model.train()
+        train_loss = 0
+        for idx, (imgs, captions, _) in tqdm(
+            enumerate(train_loader), total=len(train_loader), leave=False):
             
-        #     imgs = imgs.to(device)
-        #     captions = captions.to(device)
+            imgs = imgs.to(device)
+            captions = captions.to(device)
 
-        #     outputs = model(imgs, captions[:, :-1])
-        #     captions = captions[:, 1:]
-        #     loss = criterion(
-        #         outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
-        #     )
+            outputs = model(imgs, captions[:, :-1])
+            captions = captions[:, 1:]
+            loss = criterion(
+                outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
+            )
 
-        #     train_loss += loss.item()
+            train_loss += loss.item()
 
-        #     optimizer.zero_grad()
-        #     accelerator.backward(loss)  # Use accelerator's backward
-        #     optimizer.step()
+            optimizer.zero_grad()
+            accelerator.backward(loss)  # Use accelerator's backward
+            optimizer.step()
 
-        # train_loss /= len(train_loader)
-        # if accelerator.is_main_process:
-        #     train_losses.append(train_loss)
-        #     writer.add_scalar("Training loss", train_loss, global_step=epoch)
+        train_loss /= len(train_loader)
+        if accelerator.is_main_process:
+            train_losses.append(train_loss)
+            writer.add_scalar("Training loss", train_loss, global_step=epoch)
             
-        #     print(f"[Training] loss: {train_loss:.4f}")
+            print(f"[Training] loss: {train_loss:.4f}")
 
         # Evaluation
         if (epoch + 1) % eval_every == 0:

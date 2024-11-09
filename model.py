@@ -201,11 +201,11 @@ class CNNtoRNN(nn.Module):
                             )
                             all_candidates[batch_idx].append(candidate)
                 
-                terminate = False
+                terminate = True
                 for batch_idx in range(batch_size):
                     ordered = sorted(all_candidates[batch_idx], key=lambda x: x[1], reverse=True)
                     sequences[batch_idx] = ordered[:beam_width]
-                    terminate = terminate or all(done[batch_idx])
+                    terminate = terminate and all(done[batch_idx])
                     
                 if terminate:
                     break
