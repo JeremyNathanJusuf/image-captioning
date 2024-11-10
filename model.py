@@ -102,7 +102,7 @@ class CNNtoRNN(nn.Module):
             features = self.encoderCNN(images)
         return features
     
-    def caption_images(self, images, vocabulary, max_length=40):
+    def caption_images(self, images, vocabulary, mode="precomputed", max_length=40):
         self.eval()
         batch_size = images.size(0)  # Get the batch size from images
         result_captions = [[] for _ in range(batch_size)]  # Initialize captions list for each image in the batch
@@ -110,7 +110,10 @@ class CNNtoRNN(nn.Module):
 
         with torch.no_grad():
             # Encode all images in the batch
-            img_features = self.encoderCNN(images)  # img_features shape: (batch_size, feature_dim)
+            if mode == 'precomputed':
+                img_features = images
+            else:
+                img_features = self.encoderCNN(images)  # img_features shape: (batch_size, feature_dim)
             img_features = self.decoderRNN.dropout(img_features)
             img_features = self.decoderRNN.fc1(img_features)  # [batch_size, embed_size]
             img_features = self.decoderRNN.batchnorm(img_features)
@@ -154,70 +157,120 @@ class CNNtoRNN(nn.Module):
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text
     
-    def caption_images_beam_search(self, images, vocabulary, beam_width=20, max_length=40):
+    def caption_images_beam_search(self, images, vocabulary, beam_width=3, mode="precomputed", max_length=50):
         self.eval()
         batch_size = images.size(0)  # Get the batch size from images
+        # print("Batch size: ", batch_size)
         
         with torch.no_grad():
             # Encode all images in the batch
-            img_features = self.encoderCNN(images)  # img_features shape: (batch_size, feature_dim)
+            if mode == 'precomputed':
+                img_features = images
+            else:
+                img_features = self.encoderCNN(images)
             img_features = self.decoderRNN.dropout(img_features)
-            img_features = self.decoderRNN.fc1(img_features)  # [batch_size, embed_size]
-            img_features = self.decoderRNN.batchnorm(img_features)
+            img_features = self.decoderRNN.fc1(img_features)
+            img_features = self.decoderRNN.batchnorm(img_features) 
             img_features = img_features.unsqueeze(1)
 
             # Initialize LSTM states with the encoded image features
-            _, states = self.decoderRNN.lstm(img_features)
-            
-            done = [[False]*beam_width for _ in range(batch_size)]
-            sequences = [[([vocabulary.stoi["<SOS>"]], 0.0, 
-                           (states[0][:, batch_idx, :], states[1][:, batch_idx, :])
-                        )] for batch_idx in range(batch_size)]  # (sequence, score, states)
+            _, (states_h, states_c) = self.decoderRNN.lstm(img_features) # Shape: (1, batch_size, hidden_size)
 
-            for length in range(max_length):
-                all_candidates = [[] for _ in range(batch_size)]
-                
-                for batch_idx in range(batch_size):
-                    candidates = sequences[batch_idx]
-                    
-                    if all(done[batch_idx]):
-                        all_candidates[batch_idx] = candidates
-                        continue
-                    
-                    for seq, score, states in candidates:
-                        if seq[-1] == vocabulary.stoi["<EOS>"]:
-                            all_candidates[batch_idx].append((seq, score, states))
-                            continue
-                        
-                        embedding = self.decoderRNN.embed(torch.tensor([seq[-1]], device=images.device))
-                        output, states = self.decoderRNN.lstm(embedding, states)
-                        
-                        output = self.decoderRNN.fc2(self.decoderRNN.dropout(output.squeeze(1)))
-                        log_probs = F.log_softmax(output, dim=-1)
-                        top_log_probs, top_tokens = log_probs.topk(beam_width, dim=-1)
+            # sequences = [[(
+            #     [vocabulary.stoi["<SOS>"]], 
+            #     0.0, 
+            #     (states[0][:, batch_idx, :], states[1][:, batch_idx, :])
+            # )] for batch_idx in range(batch_size)]  # (sequence, score, states)
 
-                        for i in range(beam_width):
-                            pred_token = top_tokens[0][i].item()
-                            if pred_token == vocabulary.stoi["<EOS>"]:
-                                done[batch_idx][i] = True
-                                
-                            candidate = (
-                                seq + [pred_token], 
-                                # (score*length + top_log_probs[0][i].item())/(length+1),
-                                score + top_log_probs[0][i].item(),
-                                states
-                            )
-                            all_candidates[batch_idx].append(candidate)
+            sequences = torch.Tensor([[vocabulary.stoi["<SOS>"]]]).repeat(batch_size, beam_width, 1, 1).long().to(images.device)
+            scores = torch.zeros(batch_size, beam_width, dtype=torch.float, device=images.device)
+            states_h = states_h.unsqueeze(2).repeat(1, 1, beam_width, 1)
+            states_c = states_c.unsqueeze(2).repeat(1, 1, beam_width, 1)
+            done = torch.zeros(batch_size, beam_width, dtype=torch.bool, device=images.device) # Shape: (batch_size, beam_width)
+            lengths = torch.zeros(batch_size, beam_width, dtype=torch.long, device=images.device) # Shape: (batch_size, beam_width)
+
+            for i in range(max_length):
+                # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)`
+                # print(scores.shape) # (batch_size, beam_width)
+                # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
+                # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
+
+                seq_inp = sequences.reshape(batch_size * beam_width, -1, 1)  # Shape: (batch_size * beam_width, seq_len, 1)
+                states_c = states_c.reshape(1, batch_size * beam_width, -1)  # Shape: (1, batch_size * beam_width, hidden_size)
+                states_h = states_h.reshape(1, batch_size * beam_width, -1) # Shape: (1, batch_size * beam_width, hidden_size)
+
+                embedding = self.decoderRNN.embed(seq_inp[:, -1, :]) # Shape: (batch_size * beam_width, 1, embed_size)
+                output, (states_h, states_c) = self.decoderRNN.lstm(embedding, (states_h, states_c))
+                output = self.decoderRNN.fc2(self.decoderRNN.dropout(output.squeeze(1)))  # Shape: (batch_size * beam_width, vocab_size)
+                output = output.reshape(batch_size, beam_width, -1)  # Shape: (batch_size, beam_width, vocab_size)
+                states_h = states_h.reshape(1, batch_size, beam_width, -1) # Shape: (1, batch_size, beam_width, hidden_size)
+                states_c = states_c.reshape(1, batch_size, beam_width, -1)  # Shape: (1, batch_size, beam_width, hidden_size)
+
+                log_probs = F.log_softmax(output, dim=2) # Shape: (batch_size, beam_width, vocab_size)
+
+                # take top beam_width sequences for each batch
+                top_log_probs, top_indices = log_probs.topk(beam_width, dim=2)  # Shapes: (batch_size, beam_width, beam_width)
+
+                # for every batch, take the top beam_width sequences with scores: score[t] = score[t-1] + top_log_probs[t]
+                # new_scores = (
+                #     lengths.unsqueeze(-1) * scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
+                # ) / (lengths.unsqueeze(-1) + 1 - done.unsqueeze(-1).float()) # Shape: (batch_size, beam_width, beam_width)
+
+                new_scores = (
+                    scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
+                )
+
+                # if done for 1 batch and 1 beam, only keep 1 best score and set others to -inf
+                mask = done.unsqueeze(-1)
+                mask = mask.expand(-1, -1, beam_width)
+                mask[:, :, 0] = False # keep the best score
+                if i == 0:
+                    mask[:, 1:, :] = True # when i = 0, only keep the first beam
+                new_scores = new_scores.masked_fill(mask, float("-inf"))
+                new_scores = new_scores.reshape(batch_size, -1)  # Shape: (batch_size, beam_width*beam_width)
+
+                # Get the top beam_width sequences (take sequences, scores and states)
+                top_scores, all_top_indices = new_scores.topk(beam_width, dim=-1)  # Shapes: (batch_size, beam_width)
+                scores = top_scores # Shape: (batch_size, beam_width)
+
+                # all top indices from [0, beam_width*beam_width)
+                beam_indices = all_top_indices // beam_width # previous beam index
+                token_indices = all_top_indices % beam_width # current token index
+                batch_indices = torch.arange(batch_size).unsqueeze(-1).expand(-1, beam_width).to(beam_indices.device)
+                new_tokens = top_indices[batch_indices, beam_indices, token_indices]
+                new_tokens = new_tokens.unsqueeze(-1).unsqueeze(-1)  # Shape: (batch_size, beam_width, 1, 1)
+
+                prv_seq_indices = beam_indices.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, sequences.size(2), -1)  # Shape: (batch_size, beam_width, seq_len, 1)
+                prv_seq_tokens = sequences.gather(dim=1, index=prv_seq_indices)
+                sequences = torch.cat((prv_seq_tokens, new_tokens), dim=2)
+
+                prv_state_indices = beam_indices.unsqueeze(-1).unsqueeze(0).expand(-1, -1, -1, states_h.size(3))
+                states_h = states_h.gather(dim=2, index=prv_state_indices)
+                states_c = states_c.gather(dim=2, index=prv_state_indices)
                 
-                terminate = True
-                for batch_idx in range(batch_size):
-                    ordered = sorted(all_candidates[batch_idx], key=lambda x: x[1], reverse=True)
-                    sequences[batch_idx] = ordered[:beam_width]
-                    terminate = terminate and all(done[batch_idx])
-                    
-                if terminate:
+                # update done based on last token if it is <EOS>
+                done = done.gather(dim=1, index=beam_indices) 
+                done = done | (new_tokens.reshape(done.shape) == vocabulary.stoi["<EOS>"])
+                lengths = lengths.gather(dim=1, index=beam_indices)
+                lengths += done.logical_not().long()
+
+                if done.all():
                     break
 
-        result_captions = [seq[0][0] for seq in sequences]
-        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption[1:-1]]) for caption in result_captions]
+                # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)
+                # print(scores.shape) # (batch_size, beam_width)
+                # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
+                # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
+                # print("--------------------------------")
+                
+        result_captions = []
+        for i in range(batch_size):
+            # stop at the first <EOS> token
+            caption = sequences[i][0].squeeze(1).tolist()
+            if vocabulary.stoi["<EOS>"] in caption:
+                caption = caption[1:caption.index(vocabulary.stoi["<EOS>"])]
+            else:
+                caption = caption[1:]
+            result_captions.append(caption)
+        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text

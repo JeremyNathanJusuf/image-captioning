@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-from diffusers import AutoencoderTiny
 import math
-
 
 class EncoderCNN(nn.Module):
     def __init__(self, embed_size):
@@ -40,22 +38,6 @@ class EncoderCNN(nn.Module):
         # Flatten and pass through the fully connected layer
         features = features.view(features.size(0), -1)  # Flatten to [batch_size, 2048]        
         return features
-    
-class YOLOVAE():
-    def __init__(self, embed_size):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.vae = AutoencoderTiny.from_pretrained("madebyollin/taesd").to(device)
-        self.cnn = EncoderCNN(embed_size).to(device)
-
-        # yolo = YOLO("yolov8n.pt")
-        # self.yolo = torch.nn.modules.container.Sequential = yolo.model.__dict__["_modules"]["model"].to(device)
-        
-    def forward(self, images):
-        vae_features = self.vae.encoder(images)  # Shape: (batch_size, 8, 37, 37)
-        flatten_features = vae_features.view(vae_features.size(0), -1)  # Flatten to [batch_size, 8*37*37]
-        cnn_features = self.cnn(images)
-        concat_features = torch.cat((flatten_features, cnn_features), dim=1)
-        return concat_features
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
@@ -142,12 +124,12 @@ class DecoderLayer(nn.Module):
         x = self.norm3(x + self.dropout(ff_output))
         return x
 
-class YOLOVAEAttentionModel(nn.Module):
-    def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.2, max_seq_length=50):
-        super(YOLOVAEAttentionModel, self).__init__()
-        self.yolo_vae = YOLOVAE(embed_size)
+class CNNAttentionModel(nn.Module):
+    def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.1, max_seq_length=50):
+        super(CNNAttentionModel, self).__init__()
+        self.encoderCNN = EncoderCNN(embed_size)
 
-        self.fc1 = nn.Linear(5776 + 2048, embed_size)
+        self.fc1 = nn.Linear(2048, embed_size, bias = False)
         self.dropout = nn.Dropout(dropout)
         self.batchnorm = nn.BatchNorm1d(embed_size)
 
@@ -166,22 +148,16 @@ class YOLOVAEAttentionModel(nn.Module):
         tgt_mask = tgt_mask & nopeak_mask
         return src_mask, tgt_mask
     
-    def precompute_image(self, images):
-        with torch.no_grad():
-            enc_output = self.yolo_vae.forward(images)
-        return enc_output
-    
     def forward(self, images, captions):
         with torch.no_grad():
-            enc_output = self.yolo_vae.forward(images) # shape: (batch_size, 8*37*37)
-            
+            enc_output = self.encoderCNN(images)
         enc_output = self.fc1(enc_output)
         enc_output = self.dropout(enc_output)
         enc_output = self.batchnorm(enc_output)
 
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(captions)))
-        enc_output = enc_output.unsqueeze(1) # shape: (batch_size, 1, embed_size)
-        enc_output = enc_output.expand(-1, tgt_embedded.size(1), -1) # shape: (batch_size, seq_length, embed_size)
+        enc_output = enc_output.unsqueeze(1)
+        enc_output = enc_output.expand(-1, tgt_embedded.size(1), -1) 
         src_mask, tgt_mask = self.generate_mask(enc_output, captions)
 
         dec_output = tgt_embedded
@@ -193,11 +169,11 @@ class YOLOVAEAttentionModel(nn.Module):
         # print("dec output:", output.size())
         return output
         
-    def caption_images(self, images, vocabulary, max_length=40):
+    def caption_images(self, images, vocabulary, max_length=50):
         self.eval()
         with torch.no_grad():
             # Encode the image
-            enc_output = self.yolo_vae.forward(images)
+            enc_output = self.encoderCNN(images)
             enc_output = self.fc1(enc_output)
             enc_output = self.dropout(enc_output)
             enc_output = self.batchnorm(enc_output)
@@ -247,5 +223,101 @@ class YOLOVAEAttentionModel(nn.Module):
                 caption = torch.cat([caption, predicted.unsqueeze(1)], dim=1)
 
         # Convert the list of token indices to words
+        captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
+        return captions_text
+    
+    def caption_images_beam_search(self, images, vocabulary, beam_width=3, max_length=50):
+        self.eval()
+        batch_size = images.size(0)  # Get the batch size from images
+        # print("Batch size: ", batch_size)
+        
+        with torch.no_grad():
+            # Encode all images in the batch
+            enc_output = self.encoderCNN(images)
+            enc_output = self.dropout(enc_output)
+            enc_output = self.fc1(enc_output)
+            enc_output = self.batchnorm(enc_output) 
+            enc_output = enc_output.unsqueeze(1)
+            enc_output = enc_output.expand(-1, beam_width, -1)  # Shape: (batch_size, beam_width, feature_dim)
+            enc_output = enc_output.reshape(batch_size * beam_width, -1, enc_output.size(-1))  # Shape: (batch_size*beam_width, seq_len, feature_dim)
+
+            sequences = torch.Tensor([[vocabulary.stoi["<SOS>"]]]).repeat(batch_size, beam_width, 1, 1).long().to(images.device)
+            scores = torch.zeros(batch_size, beam_width, dtype=torch.float, device=images.device)
+            done = torch.zeros(batch_size, beam_width, dtype=torch.bool, device=images.device) # Shape: (batch_size, beam_width)
+            lengths = torch.zeros(batch_size, beam_width, dtype=torch.long, device=images.device) # Shape: (batch_size, beam_width)
+
+            for i in range(max_length):
+                # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)`
+                # print(scores.shape) # (batch_size, beam_width)
+                # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
+                # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
+
+                seq_inp = sequences.reshape(batch_size * beam_width, -1, 1)  # Shape: (batch_size * beam_width, seq_len, 1)
+                tensor_seq = seq_inp[:, -1, :]  # Shape: (batch_size * beam_width, 1)
+                embedding = self.dropout(self.positional_encoding(self.decoder_embedding(tensor_seq))) # Shape: (batch_size * beam_width, embed_size)
+                src_mask, tgt_mask = self.generate_mask(enc_output, tensor_seq)
+                dec_output = embedding
+                for layer in self.decoder_layers:
+                    dec_output = layer(dec_output, enc_output, src_mask, tgt_mask)
+                
+                output = self.fc2(dec_output[:, -1, :]) # Shape: (batch_size, vocab_size)
+                output = output.reshape(batch_size, beam_width, -1)  # Shape: (batch_size, beam_width, vocab_size)
+
+                log_probs = F.log_softmax(output, dim=2) # Shape: (batch_size, beam_width, vocab_size)
+
+                # take top beam_width sequences for each batch
+                top_log_probs, top_indices = log_probs.topk(beam_width, dim=2)  # Shapes: (batch_size, beam_width, beam_width)
+
+                # for every batch, take the top beam_width sequences with scores: score[t] = score[t-1] + top_log_probs[t]
+                # new_scores = (
+                #     lengths.unsqueeze(-1) * scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
+                # ) / (lengths.unsqueeze(-1) + 1 - done.unsqueeze(-1).float()) # Shape: (batch_size, beam_width, beam_width)
+
+                new_scores = (
+                    scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
+                )
+
+                # if done for 1 batch and 1 beam, only keep 1 best score and set others to -inf
+                mask = done.unsqueeze(-1)
+                mask = mask.expand(-1, -1, beam_width)
+                mask[:, :, 0] = False # keep the best score
+                if i == 0:
+                    mask[:, 1:, :] = True # when i = 0, only keep the first beam
+                new_scores = new_scores.masked_fill(mask, float("-inf"))
+                new_scores = new_scores.reshape(batch_size, -1)  # Shape: (batch_size, beam_width*beam_width)
+
+                # Get the top beam_width sequences (take sequences, scores and states)
+                top_scores, all_top_indices = new_scores.topk(beam_width, dim=-1)  # Shapes: (batch_size, beam_width)
+                scores = top_scores # Shape: (batch_size, beam_width)
+
+                # all top indices from [0, beam_width*beam_width)
+                beam_indices = all_top_indices // beam_width # previous beam index
+                token_indices = all_top_indices % beam_width # current token index
+                batch_indices = torch.arange(batch_size).unsqueeze(-1).expand(-1, beam_width).to(beam_indices.device)
+                new_tokens = top_indices[batch_indices, beam_indices, token_indices]
+                new_tokens = new_tokens.unsqueeze(-1).unsqueeze(-1)  # Shape: (batch_size, beam_width, 1, 1)
+
+                prv_seq_indices = beam_indices.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, sequences.size(2), -1)  # Shape: (batch_size, beam_width, seq_len, 1)
+                prv_seq_tokens = sequences.gather(dim=1, index=prv_seq_indices)
+                sequences = torch.cat((prv_seq_tokens, new_tokens), dim=2)
+                
+                # update done based on last token if it is <EOS>
+                done = done.gather(dim=1, index=beam_indices) 
+                done = done | (new_tokens.reshape(done.shape) == vocabulary.stoi["<EOS>"])
+                lengths = lengths.gather(dim=1, index=beam_indices)
+                lengths += done.logical_not().long()
+
+                if done.all():
+                    break
+                
+        result_captions = []
+        for i in range(batch_size):
+            # stop at the first <EOS> token
+            caption = sequences[i][0].squeeze(1).tolist()
+            if vocabulary.stoi["<EOS>"] in caption:
+                caption = caption[1:caption.index(vocabulary.stoi["<EOS>"])]
+            else:
+                caption = caption[1:]
+            result_captions.append(caption)
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text

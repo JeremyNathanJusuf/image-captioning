@@ -53,7 +53,7 @@ def precompute_images():
         transform=transform,
         num_workers=num_workers,
         batch_size=batch_size,
-        mode=mode,
+        mode='image',
         model_arch=model_arch,
         dataset=dataset
     )
@@ -78,11 +78,11 @@ def precompute_images():
             imgs = imgs.to(device)
             outputs = model.precompute_image(imgs)
             # save computed encoded outputs to precomputed folder
-            if not os.path.exists(f'./precomputed/{model_arch}/{dataset}'):
-                os.makedirs(f'./precomputed/{model_arch}/{dataset}')
+            if not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
+                os.makedirs(f'precomputed/{model_arch}/{dataset}')
                 
             for i in range(len(img_ids)):
-                filepath = f'./precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
+                filepath = f'precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
                 print(filepath, os.path.exists(filepath))
                 with open(filepath, 'wb') as f:
                     pickle.dump(outputs[i].cpu(), f)
@@ -93,17 +93,17 @@ def precompute_images():
             imgs = imgs.to(device)
             outputs = model.precompute_image(imgs)
             
-            if not os.path.exists(f'./precomputed/{model_arch}/{dataset}'):
-                os.makedirs(f'./precomputed/{model_arch}/{dataset}')
+            if not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
+                os.makedirs(f'precomputed/{model_arch}/{dataset}')
                 
             for i in range(len(img_ids)):
-                filepath = f'./precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
+                filepath = f'precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
                 print(filepath, os.path.exists(filepath))
                 with open(filepath, 'wb') as f:
                     pickle.dump(outputs[i].cpu(), f)
                 
 def train(model_arch=model_arch, dataset=dataset):
-    if mode == 'precomputed' and not os.path.exists(f'./precomputed/{model_arch}/{dataset})'):
+    if mode == 'precomputed' and not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
         precompute_images()
     
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
@@ -210,9 +210,9 @@ def train(model_arch=model_arch, dataset=dataset):
                     enumerate(val_loader), total=len(val_loader), leave=False
                 ):
                     if inference_type == 'greedy':
-                        generated_captions = model.caption_images(imgs, train_dataset.vocab)
+                        generated_captions = model.caption_images(imgs, train_dataset.vocab, mode=mode)
                     elif inference_type == 'beam':
-                        generated_captions = model.caption_images_beam_search(imgs, train_dataset.vocab, beam_width)
+                        generated_captions = model.caption_images_beam_search(imgs, train_dataset.vocab, beam_width, mode=mode)
                     else:
                         raise ValueError("Inference type not recognized")
 

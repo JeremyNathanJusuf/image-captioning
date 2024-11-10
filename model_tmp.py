@@ -172,8 +172,8 @@ class CNNtoRNN(nn.Module):
             scores = torch.zeros(batch_size, beam_width, dtype=torch.float, device=images.device)
             states_h = states_h.unsqueeze(2).repeat(1, 1, beam_width, 1)
             states_c = states_c.unsqueeze(2).repeat(1, 1, beam_width, 1)
-            done = torch.zeros(batch_size, beam_width, dtype=torch.bool, device=images.device)
-            lengths = torch.zeros(batch_size, beam_width, dtype=torch.long, device=images.device)
+            done = torch.zeros(batch_size, beam_width, dtype=torch.bool, device=images.device) # Shape: (batch_size, beam_width)
+            lengths = torch.zeros(batch_size, beam_width, dtype=torch.long, device=images.device) # Shape: (batch_size, beam_width)
 
             for i in range(max_length):
                 # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)`

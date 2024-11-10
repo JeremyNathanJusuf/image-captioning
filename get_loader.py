@@ -247,7 +247,7 @@ class ImageCaptionDataset(Dataset):
 
         elif self.mode == 'precomputed':
             # load the precomputed tensor from pickle folder
-            with open(os.path.join(self.precomputed_dir, self.model_arch, self.dataset, str(img_id)), 'rb') as f:
+            with open(os.path.join(self.precomputed_dir, self.model_arch, self.dataset, str(img_id).split(".")[0] + ".pkl"), 'rb') as f:
                 img = pickle.load(f)
                 
             if not isinstance(img, torch.Tensor):
