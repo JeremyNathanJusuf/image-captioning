@@ -5,6 +5,7 @@ import yaml
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
+import pickle
 from torch.utils.tensorboard import SummaryWriter
 from accelerate import Accelerator
 from utils import save_checkpoint, load_checkpoint, transform
@@ -14,7 +15,6 @@ from nlgmetricverse import NLGMetricverse, load_metric
 from model import CNNtoRNN
 from attn_model import CNNAttentionModel
 from yolo_vae_model import YOLOVAEAttentionModel
-
 # Configurations
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
@@ -26,6 +26,7 @@ batch_size = int(config['training']['batch_size'])
 step_size = int(config['training']['step_size'])
 gamma = float(config['training']['gamma'])
 model_arch = config['training']['model_arch']
+mode = config['training']['mode']
 dataset = config['training']['dataset']
 inference_type = config['training']['inference_type']
 beam_width = int(config['training']['beam_width'])
@@ -47,14 +48,73 @@ if 'yolovae_attn_model' in config:
     yolovae_num_layers = int(config['yolovae_attn_model']['num_layers'])
     yolovae_num_heads = int(config['yolovae_attn_model']['num_heads'])
 
-
-def train(model_arch=model_arch, dataset=dataset):
+def precompute_images():
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
         num_workers=num_workers,
         batch_size=batch_size,
+        mode=mode,
+        model_arch=model_arch,
         dataset=dataset
     )
+    vocab_size = len(train_dataset.vocab)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    if model_arch == "cnn-rnn":
+        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
+    elif model_arch == "cnn-attn":
+        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+    elif model_arch == "yolovae-attn":
+        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
+    else:
+        raise ValueError("Model not recognized")
+    
+    model.eval()
+    
+    with torch.no_grad():
+        for idx, (img_ids, imgs, captions, _) in tqdm(
+            enumerate(train_loader), total=len(train_loader), leave=False):
+            
+            imgs = imgs.to(device)
+            outputs = model.precompute_image(imgs)
+            # save computed encoded outputs to precomputed folder
+            if not os.path.exists(f'./precomputed/{model_arch}/{dataset}'):
+                os.makedirs(f'./precomputed/{model_arch}/{dataset}')
+                
+            for i in range(len(img_ids)):
+                filepath = f'./precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
+                print(filepath, os.path.exists(filepath))
+                with open(filepath, 'wb') as f:
+                    pickle.dump(outputs[i].cpu(), f)
+
+        for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
+            enumerate(val_loader), total=len(val_loader), leave=False
+        ):
+            imgs = imgs.to(device)
+            outputs = model.precompute_image(imgs)
+            
+            if not os.path.exists(f'./precomputed/{model_arch}/{dataset}'):
+                os.makedirs(f'./precomputed/{model_arch}/{dataset}')
+                
+            for i in range(len(img_ids)):
+                filepath = f'./precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
+                print(filepath, os.path.exists(filepath))
+                with open(filepath, 'wb') as f:
+                    pickle.dump(outputs[i].cpu(), f)
+                
+def train(model_arch=model_arch, dataset=dataset):
+    if mode == 'precomputed' and not os.path.exists(f'./precomputed/{model_arch}/{dataset})'):
+        precompute_images()
+    
+    train_loader, val_loader, _, train_dataset, _, _ = get_loader(
+        transform=transform,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        mode=mode,
+        model_arch=model_arch,
+        dataset=dataset
+    )
+    
     vocab_size = len(train_dataset.vocab)
     print("Vocabulary size:", vocab_size)
 
@@ -72,14 +132,15 @@ def train(model_arch=model_arch, dataset=dataset):
     step = 0
 
     if model_arch == "cnn-rnn":
-        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
+        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size)
     elif model_arch == "cnn-attn":
-        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers)
     elif model_arch == "yolovae-attn":
-        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
+        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers)
     else:
         raise ValueError("Model not recognized")
     
+    model = model.to(device)
     
     pad_idx = train_dataset.vocab.stoi['<PAD>']
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
@@ -110,13 +171,13 @@ def train(model_arch=model_arch, dataset=dataset):
         
         model.train()
         train_loss = 0
-        for idx, (imgs, captions, _) in tqdm(
+        for idx, (img_ids, imgs, captions, _) in tqdm(
             enumerate(train_loader), total=len(train_loader), leave=False):
             
             imgs = imgs.to(device)
             captions = captions.to(device)
 
-            outputs = model(imgs, captions[:, :-1])
+            outputs = model(imgs, captions[:, :-1], mode=mode)
             captions = captions[:, 1:]
             loss = criterion(
                 outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
@@ -145,7 +206,7 @@ def train(model_arch=model_arch, dataset=dataset):
             all_caption_tokens = []
 
             with torch.no_grad():
-                for idx, (imgs, captions, ref_captions) in tqdm(
+                for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
                     enumerate(val_loader), total=len(val_loader), leave=False
                 ):
                     if inference_type == 'greedy':
@@ -231,3 +292,4 @@ def train(model_arch=model_arch, dataset=dataset):
 
 if __name__ == "__main__":
     train()
+    # precompute_images()

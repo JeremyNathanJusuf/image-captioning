@@ -44,10 +44,9 @@ class EncoderCNN(nn.Module):
         
         # Flatten and pass through the fully connected layer
         features = features.view(features.size(0), -1)  # Flatten to [batch_size, 2048]        
+
         return features
-
-
-
+        
 class DecoderRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size):
         super(DecoderRNN, self).__init__()
@@ -88,11 +87,20 @@ class CNNtoRNN(nn.Module):
         self.encoderCNN = EncoderCNN(embed_size)
         self.decoderRNN = DecoderRNN(embed_size, hidden_size, vocab_size)
 
-    def forward(self, images, captions):
-        with torch.no_grad():
-            features = self.encoderCNN(images)
+    def forward(self, images, captions, mode='precomputed'):
+        if mode == 'precomputed':
+            features = images
+        else:
+            with torch.no_grad():
+                features = self.encoderCNN(images)
+                
         outputs = self.decoderRNN(features, captions)
         return outputs
+    
+    def precompute_image(self, images):
+        with torch.no_grad():
+            features = self.encoderCNN(images)
+        return features
     
     def caption_images(self, images, vocabulary, max_length=40):
         self.eval()

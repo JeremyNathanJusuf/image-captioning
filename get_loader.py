@@ -12,6 +12,7 @@ import yaml
 import nltk
 from nltk.tokenize import word_tokenize
 import string
+import pickle
 
 # Configurations
 with open('config.yaml', 'r') as file:
@@ -75,12 +76,93 @@ class Vocabulary:
             for token in tokenized_text
         ]
 
+class PrecomputedDataset(Dataset):
+    def __init__(self, root_dir, captions_file, precomputed_dir, dataset, model_arch, freq_threshold=5, max_length=70):
+        self.root_dir = root_dir
+        self.df = captions_file
+        self.precomputed_dir = precomputed_dir
+        self.dataset = dataset
+        self.model_arch = model_arch
+        # remove nan values
+        self.df = self.df.dropna()
+
+        # Get img, caption columns
+        self.imgs = self.df["image"].tolist()
+        raw_captions = self.df["caption"].tolist()
+
+        for i in range(len(raw_captions)):
+            for j in range(len(raw_captions[i])):
+                if pd.isnull(raw_captions[i][j]):
+                    raw_captions[i][j] = ""
+                else:
+                    raw_captions[i][j] = raw_captions[i][j].lower().strip().strip("\n")
+                    raw_captions[i][j] = "".join([char for char in raw_captions[i][j] if char not in string.punctuation])
+
+        self.ref_captions = raw_captions
+        
+        # Initialize vocabulary and build vocab
+        self.vocab = Vocabulary(freq_threshold)
+        self.vocab.build_vocabulary(raw_captions)
+
+        # Preprocess captions: tokenize and numericalize
+        # self.tokenized_captions = []
+        self.numericalized_captions = []
+        for captions in raw_captions:
+            caption_list = []
+            for caption in captions:
+                # Tokenize the caption
+                tokens = self.vocab.tokenizer_eng(caption)
+                # self.tokenized_captions.append(tokens)
+                
+                # Numericalize the caption with <SOS> and <EOS> tokens
+                numericalized = [self.vocab.stoi["<SOS>"]]
+                numericalized += self.vocab.numericalize(caption)
+                numericalized.append(self.vocab.stoi["<EOS>"])
+                caption_list.append(numericalized)
+            
+            self.numericalized_captions.append(caption_list)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, index):
+        # Image loading
+        img_id = self.imgs[index]
+        
+        # load the precomputed tensor from pickle folder
+        with open(os.path.join(self.precomputed_dir, self.model_arch, self.dataset, str(img_id)), 'rb') as f:
+            encoded_output = pickle.load(f)
+        
+        # Ensure the loaded data is a PyTorch tensor
+        if not isinstance(encoded_output, torch.Tensor):
+            encoded_output = torch.tensor(img)
+        
+        ref_caption = self.ref_captions[index]
+
+        # Retrieve preprocessed numericalized caption and tokens
+        numericalized_caption = self.numericalized_captions[index]
+        # caption_tokens = self.tokenized_captions[index]
+        
+        length = len(numericalized_caption)
+        # sample the caption
+        caption_idx = torch.randint(0, length, (1,)).item()
+        numericalized_caption = numericalized_caption[caption_idx]
+        # caption_tokens = caption_tokens[caption_idx]
+
+        return encoded_output, numericalized_caption, ref_caption
+
+
 class ImageCaptionDataset(Dataset):
-    def __init__(self, root_dir, captions_file, transform=None, freq_threshold=5, max_length=70):
+    def __init__(self, root_dir, captions_file, mode='precomputed', precomputed_dir=None, dataset=None, model_arch=None, transform=None, freq_threshold=5, max_length=70):
         self.root_dir = root_dir
         self.df = captions_file
         self.transform = transform
-
+        
+        self.mode = mode
+        self.precomputed_dir = precomputed_dir
+        self.dataset = dataset
+        self.model_arch = model_arch
+        
         # remove nan values
         self.df = self.df.dropna()
 
@@ -140,18 +222,7 @@ class ImageCaptionDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, index):
-        # Image loading
-        img_id = self.imgs[index]
-        img = Image.open(os.path.join(self.root_dir, str(img_id)))
-        # Ensure the image has 3 channels
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
         ref_caption = self.ref_captions[index]
-        
-        # Apply image transformations if provided
-        if self.transform is not None:
-            img = self.transform(img)
-
         # Retrieve preprocessed numericalized caption and tokens
         numericalized_caption = self.numericalized_captions[index]
         # caption_tokens = self.tokenized_captions[index]
@@ -161,32 +232,66 @@ class ImageCaptionDataset(Dataset):
         caption_idx = torch.randint(0, length, (1,)).item()
         numericalized_caption = numericalized_caption[caption_idx]
         # caption_tokens = caption_tokens[caption_idx]
+        
+        # Image / Precomputed loading
+        img_id = self.imgs[index]
+        if self.mode == 'image':
+            img = Image.open(os.path.join(self.root_dir, str(img_id)))
+            # Ensure the image has 3 channels
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Apply image transformations if provided
+            if self.transform is not None:
+                img = self.transform(img)
+
+        elif self.mode == 'precomputed':
+            # load the precomputed tensor from pickle folder
+            with open(os.path.join(self.precomputed_dir, self.model_arch, self.dataset, str(img_id)), 'rb') as f:
+                img = pickle.load(f)
+                
+            if not isinstance(img, torch.Tensor):
+                img = torch.tensor(img)
 
         # Return the processed image, numericalized caption, and original caption tokens
-        return img, numericalized_caption, ref_caption
+        return img_id, img, numericalized_caption, ref_caption
 
 class MyCollate:
-    def __init__(self, pad_idx):
+    def __init__(self, pad_idx, mode='precomputed'):
         self.pad_idx = pad_idx
+        self.mode = mode
 
     def __call__(self, batch):
-        imgs = [item[0].unsqueeze(0) for item in batch]
-        imgs = torch.cat(imgs, dim=0)
-        targets = [torch.tensor(item[1]) for item in batch]
+        img_ids = [item[0] for item in batch]
+        targets = [torch.tensor(item[2]) for item in batch]
         # caption_tokens = [item[2] for item in batch]  # Collect caption_tokens
-        ref_caption = [item[2] for item in batch]  # Collect caption lengths
+        ref_caption = [item[3] for item in batch]  # Collect caption lengths
         targets = pad_sequence(targets, batch_first=True, padding_value=self.pad_idx)
-        return imgs, targets, ref_caption
-
+            
+        if self.mode == 'precomputed':
+            precomputed_outputs = [item[1].unsqueeze(0) for item in batch]
+            precomputed_outputs = torch.cat(precomputed_outputs, dim=0)
+            return img_ids, precomputed_outputs, targets, ref_caption
+            
+        elif self.mode == 'image':
+            imgs = [item[1].unsqueeze(0) for item in batch]
+            imgs = torch.cat(imgs, dim=0)
+            return img_ids, imgs, targets, ref_caption
+        
+        else:
+            raise ValueError("Invalid mode. Choose either 'precomputed' or 'image'")
 
 def get_loader(
     transform,
     batch_size=32,
     num_workers=8,
+    mode='precomputed',
     dataset='mscoco',
+    model_arch='cnn-rnn',
     shuffle=True,
     pin_memory=True,
 ):
+    precomputed_dir = './precomputed/'
     if dataset =='flickr':
         root_folder = "./flickr30k/images/"
         captions_path = "./flickr30k/captions.txt"
@@ -201,9 +306,9 @@ def get_loader(
             train_val_img_captions, test_size=val_ratio, random_state=seed
         )
         
-        train_dataset = ImageCaptionDataset(root_folder, train_img_captions, transform=transform)
-        val_dataset = ImageCaptionDataset(root_folder, val_img_captions, transform=transform)
-        test_dataset = ImageCaptionDataset(root_folder, test_img_captions, transform=transform)
+        train_dataset = ImageCaptionDataset(root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+        val_dataset = ImageCaptionDataset(root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+        test_dataset = ImageCaptionDataset(root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         
     elif dataset == 'mscoco':
         train_caption_path = './mscoco/annotations/captions_train2014.json'
@@ -216,7 +321,6 @@ def get_loader(
              
         with open(val_test_caption_path) as f:
             val_test_captions = json.load(f)
-            
         
         # Create a list of dictionaries with 'image_id' and 'caption' keys
         train_img_captions = [{'image': annotation['image_id'], 'caption': annotation['caption']} for annotation in train_captions['annotations']]
@@ -237,9 +341,9 @@ def get_loader(
             val_test_img_captions, test_size=val_ratio, random_state=seed
         )
         
-        train_dataset = ImageCaptionDataset(train_root_folder, train_img_captions, transform=transform)
-        val_dataset = ImageCaptionDataset(val_test_root_folder, val_img_captions, transform=transform)
-        test_dataset = ImageCaptionDataset(val_test_root_folder, test_img_captions, transform=transform)
+        train_dataset = ImageCaptionDataset(train_root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+        val_dataset = ImageCaptionDataset(val_test_root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+        test_dataset = ImageCaptionDataset(val_test_root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         
     else:
         raise ValueError("Invalid dataset. Choose either 'mscoco' or 'flickr'")
@@ -253,7 +357,7 @@ def get_loader(
         num_workers=num_workers,
         shuffle=shuffle,
         pin_memory=pin_memory,
-        collate_fn=MyCollate(pad_idx=pad_idx),
+        collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
     )
     
     val_loader = DataLoader(
@@ -262,7 +366,7 @@ def get_loader(
         num_workers=num_workers,
         shuffle=shuffle,
         pin_memory=pin_memory,
-        collate_fn=MyCollate(pad_idx=pad_idx),
+        collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
     )
     
     test_loader = DataLoader(
@@ -271,7 +375,6 @@ def get_loader(
         num_workers=num_workers,
         shuffle=shuffle,
         pin_memory=pin_memory,
-        collate_fn=MyCollate(pad_idx=pad_idx),
+        collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
     )
     return train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset
-    

@@ -148,9 +148,18 @@ class CNNAttentionModel(nn.Module):
         tgt_mask = tgt_mask & nopeak_mask
         return src_mask, tgt_mask
     
-    def forward(self, images, captions):
+    def precompute_image(self, images):
         with torch.no_grad():
-            enc_output = self.encoderCNN(images)
+            features = self.encoderCNN(images)
+        return features
+    
+    def forward(self, images, captions, mode='precomputed'):
+        if mode == 'precomputed':
+            enc_output = images
+        else:
+            with torch.no_grad():
+                enc_output = self.encoderCNN(images)
+            
         enc_output = self.fc1(enc_output)
         enc_output = self.dropout(enc_output)
         enc_output = self.batchnorm(enc_output)

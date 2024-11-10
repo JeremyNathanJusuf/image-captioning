@@ -13,13 +13,14 @@ training:
   test_ratio: 0.05
   
   # model settings
-  model_arch: 'yolovae-attn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
-  dataset: 'mscoco' # 'mscoco' or 'flickr'
+  model_arch: 'cnn-rnn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
+  dataset: 'flickr' # 'mscoco' or 'flickr'
+  mode: 'image' # 'precomputed' or 'image'
   inference_type: 'greedy' # 'greedy' or 'beam'
   beam_width: 3
 
   # save and load checkpoints
-  save_model: true
+  save_model: false
   load_model: false
   checkpoint_dir: './checkpoints/checkpoint_epoch_50.pth.tar'
 
