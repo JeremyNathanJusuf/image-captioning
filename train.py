@@ -326,6 +326,7 @@ if __name__ == "__main__":
     args = sys.argv
     config_path = args[1]
     saved_name = config_path.split(".")[0]
+    saved_name = "-".join(saved_name.split("-")[3:])
     
     with open(f'./configs/{config_path}', 'r') as file:
         config = yaml.safe_load(file)
