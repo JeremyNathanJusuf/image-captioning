@@ -178,11 +178,14 @@ class CNNAttentionModel(nn.Module):
         # print("dec output:", output.size())
         return output
         
-    def caption_images(self, images, vocabulary, max_length=50):
+    def caption_images(self, images, vocabulary, mode="precomputed", max_length=50):
         self.eval()
         with torch.no_grad():
             # Encode the image
-            enc_output = self.encoderCNN(images)
+            if mode == "precomputed":
+                enc_output = images
+            else:
+                enc_output = self.encoderCNN(images)
             enc_output = self.fc1(enc_output)
             enc_output = self.dropout(enc_output)
             enc_output = self.batchnorm(enc_output)
@@ -235,71 +238,100 @@ class CNNAttentionModel(nn.Module):
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text
 
-    def caption_images_beam_search(self, images, vocabulary, beam_width=3, max_length=50):
+    def caption_images_beam_search(self, images, vocabulary, beam_width=3, mode="precomputed", max_length=50):
         self.eval()
+        batch_size = images.size(0)  # Get the batch size from images
+        # print("Batch size: ", batch_size)
+        
         with torch.no_grad():
-            # Encode the image
-            enc_output = self.encoderCNN(images)
-            enc_output = self.fc1(enc_output)
+            # Encode all images in the batch
+            if mode == "precomputed":
+                enc_output = images
+            else:
+                enc_output = self.encoderCNN(images)
             enc_output = self.dropout(enc_output)
-            enc_output = self.batchnorm(enc_output)
-            enc_output = enc_output.unsqueeze(1)  # Expand dimensions for transformer input
+            enc_output = self.fc1(enc_output)
+            enc_output = self.batchnorm(enc_output) 
+            enc_output = enc_output.unsqueeze(1)
+            enc_output = enc_output.expand(-1, beam_width, -1)  # Shape: (batch_size, beam_width, feature_dim)
+            enc_output = enc_output.reshape(batch_size * beam_width, -1, enc_output.size(-1))  # Shape: (batch_size*beam_width, seq_len, feature_dim)
 
-            # Initialize the caption with the <SOS> token
-            batch_size = images.size(0)
-            
-            done = [[False]*beam_width for _ in range(batch_size)]
-            sequences = [[([vocabulary.stoi["<SOS>"]], 0.0, 
-                        )] for batch_idx in range(batch_size)]  # (sequence, score)
+            sequences = torch.Tensor([[vocabulary.stoi["<SOS>"]]]).repeat(batch_size, beam_width, 1, 1).long().to(images.device)
+            scores = torch.zeros(batch_size, beam_width, dtype=torch.float, device=images.device)
+            done = torch.zeros(batch_size, beam_width, dtype=torch.bool, device=images.device) # Shape: (batch_size, beam_width)
+            lengths = torch.zeros(batch_size, beam_width, dtype=torch.long, device=images.device) # Shape: (batch_size, beam_width)
 
-            for length in range(max_length):
-                all_candidates = [[] for _ in range(batch_size)]
+            for i in range(max_length):
+                # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)`
+                # print(scores.shape) # (batch_size, beam_width)
+                # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
+                # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
+
+                seq_inp = sequences.reshape(batch_size * beam_width, -1)  # Shape: (batch_size * beam_width, seq_len, 1)
+                embedding = self.dropout(self.positional_encoding(self.decoder_embedding(seq_inp))) # Shape: (batch_size * beam_width, embed_size)
+                src_mask, tgt_mask = self.generate_mask(enc_output, seq_inp)
+                dec_output = embedding
+                for layer in self.decoder_layers:
+                    dec_output = layer(dec_output, enc_output, src_mask, tgt_mask)
                 
-                for batch_idx in range(batch_size):
-                    candidates = sequences[batch_idx]
-                    
-                    if all(done[batch_idx]):
-                        all_candidates[batch_idx] = candidates
-                        continue
-                    
-                    for seq, score in candidates:
-                        if seq[-1] == vocabulary.stoi["<EOS>"]:
-                            all_candidates[batch_idx].append((seq, score))
-                            continue
-                        
-                        tensor_seq = torch.tensor([seq], device=images.device)
-                        tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tensor_seq)))
-                        src_mask, tgt_mask = self.generate_mask(enc_output, tensor_seq)
-                        
-                        dec_output = tgt_embedded
-                        for layer in self.decoder_layers:
-                            dec_output = layer(dec_output, enc_output, src_mask, tgt_mask)
-                        
-                        output = self.fc2(dec_output[:, -1, :]) # Shape: (batch_size, vocab_size)
-                        log_probs = F.log_softmax(output, dim=-1)
-                        top_log_probs, top_tokens = log_probs.topk(beam_width, dim=-1)
+                output = self.fc2(dec_output[:, -1, :]) # Shape: (batch_size, vocab_size)
+                output = output.reshape(batch_size, beam_width, -1)  # Shape: (batch_size, beam_width, vocab_size)
 
-                        for i in range(beam_width):
-                            pred_token = top_tokens[0][i].item()
-                            if pred_token == vocabulary.stoi["<EOS>"]:
-                                done[batch_idx][i] = True
-                                
-                            candidate = (
-                                seq + [pred_token], 
-                                # (score*length + top_log_probs[0][i].item())/(length+1),
-                                score + top_log_probs[0][i].item()
-                            )
-                            all_candidates[batch_idx].append(candidate)
+                log_probs = F.log_softmax(output, dim=2) # Shape: (batch_size, beam_width, vocab_size)
+
+                # take top beam_width sequences for each batch
+                top_log_probs, top_indices = log_probs.topk(beam_width, dim=2)  # Shapes: (batch_size, beam_width, beam_width)
+
+                # for every batch, take the top beam_width sequences with scores: score[t] = score[t-1] + top_log_probs[t]
+                # new_scores = (
+                #     lengths.unsqueeze(-1) * scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
+                # ) / (lengths.unsqueeze(-1) + 1 - done.unsqueeze(-1).float()) # Shape: (batch_size, beam_width, beam_width)
+
+                new_scores = (
+                    scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
+                )
+
+                # if done for 1 batch and 1 beam, only keep 1 best score and set others to -inf
+                mask = done.unsqueeze(-1)
+                mask = mask.expand(-1, -1, beam_width)
+                mask[:, :, 0] = False # keep the best score
+                if i == 0:
+                    mask[:, 1:, :] = True # when i = 0, only keep the first beam
+                new_scores = new_scores.masked_fill(mask, float("-inf"))
+                new_scores = new_scores.reshape(batch_size, -1)  # Shape: (batch_size, beam_width*beam_width)
+
+                # Get the top beam_width sequences (take sequences, scores and states)
+                top_scores, all_top_indices = new_scores.topk(beam_width, dim=-1)  # Shapes: (batch_size, beam_width)
+                scores = top_scores # Shape: (batch_size, beam_width)
+
+                # all top indices from [0, beam_width*beam_width)
+                beam_indices = all_top_indices // beam_width # previous beam index
+                token_indices = all_top_indices % beam_width # current token index
+                batch_indices = torch.arange(batch_size).unsqueeze(-1).expand(-1, beam_width).to(beam_indices.device)
+                new_tokens = top_indices[batch_indices, beam_indices, token_indices]
+                new_tokens = new_tokens.unsqueeze(-1).unsqueeze(-1)  # Shape: (batch_size, beam_width, 1, 1)
+
+                prv_seq_indices = beam_indices.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, sequences.size(2), -1)  # Shape: (batch_size, beam_width, seq_len, 1)
+                prv_seq_tokens = sequences.gather(dim=1, index=prv_seq_indices)
+                sequences = torch.cat((prv_seq_tokens, new_tokens), dim=2)
                 
-                terminate = False
-                for batch_idx in range(batch_size):
-                    ordered = sorted(all_candidates[batch_idx], key=lambda x: x[1], reverse=True)
-                    sequences[batch_idx] = ordered[:beam_width]
-                    terminate = terminate or all(done[batch_idx])
-                    
-                if terminate:
+                # update done based on last token if it is <EOS>
+                done = done.gather(dim=1, index=beam_indices) 
+                done = done | (new_tokens.reshape(done.shape) == vocabulary.stoi["<EOS>"])
+                lengths = lengths.gather(dim=1, index=beam_indices)
+                lengths += done.logical_not().long()
+
+                if done.all():
                     break
-
-        result_captions = [seq[0][0] for seq in sequences]
+                
+        result_captions = []
+        for i in range(batch_size):
+            # stop at the first <EOS> token
+            caption = sequences[i][0].squeeze(1).tolist()
+            if vocabulary.stoi["<EOS>"] in caption:
+                caption = caption[1:caption.index(vocabulary.stoi["<EOS>"])]
+            else:
+                caption = caption[1:]
+            result_captions.append(caption)
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text
