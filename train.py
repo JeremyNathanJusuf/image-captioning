@@ -7,70 +7,39 @@ import torch.nn as nn
 import torch.optim as optim
 import pickle
 import sys
+import argparse
+
 from torch.utils.tensorboard import SummaryWriter
 from accelerate import Accelerator
 from utils import save_checkpoint, load_checkpoint, transform
 from get_loader import get_loader
 from nlgmetricverse import NLGMetricverse, load_metric
 
-from model import CNNtoRNN
-from attn_model import CNNAttentionModel
-from yolo_vae_model import YOLOVAEAttentionModel
+from models.cnnrnn_model import CNNtoRNN
+from models.cnnattn_model import CNNAttentionModel
+from models.vitcnnattn_model import VITCNNAttentionModel
 
-import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True)
     parser.add_argument("--embed_size", type=int, default=256)
-    parser.add_argument("--num_layer", type=int, default=2)
+    parser.add_argument("--num_layers", type=int, default=-1)
     parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
     return parser.parse_args()
 
 def precompute_images(
+    model,
     model_arch,
     dataset,
-    model_config,
-    num_workers,
-    transform,
-    batch_size,
-    val_ratio,
-    test_ratio  
+    train_loader,
+    val_loader
 ):
-    train_loader, val_loader, _, train_dataset, _, _ = get_loader(
-        transform=transform,
-        num_workers=num_workers,
-        batch_size=batch_size,
-        mode='image',
-        model_arch=model_arch,
-        dataset=dataset,
-        val_ratio=val_ratio,
-        test_ratio=test_ratio
-    )
-    
-    vocab_size = len(train_dataset.vocab)
-    
+    print("Precomputing images...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    if model_arch == "cnn-rnn":
-        rnn_embed_size = model_config['rnn_embed_size']
-        rnn_hidden_size = model_config['rnn_hidden_size']
-        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
-    elif model_arch == "cnn-attn":
-        attn_embed_size = model_config['attn_embed_size']
-        attn_num_layers = model_config['attn_num_layers']
-        attn_num_heads = model_config['attn_num_heads']
-        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
-    elif model_arch == "yolovae-attn":
-        yolovae_embed_size = model_config['yolovae_embed_size']
-        yolovae_num_layers = model_config['yolovae_num_layers']
-        yolovae_num_heads = model_config['yolovae_num_heads']
-        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
-    else:
-        raise ValueError("Model not recognized")
-    
     model.eval()
-    
     with torch.no_grad():
         for idx, (img_ids, imgs, captions, _) in tqdm(
             enumerate(train_loader), total=len(train_loader), leave=False):
@@ -101,7 +70,25 @@ def precompute_images(
                 print(filepath, os.path.exists(filepath))
                 with open(filepath, 'wb') as f:
                     pickle.dump(outputs[i].cpu(), f)
-                
+
+def get_model(model_config, vocab_size, device):
+    if model_arch == "cnn-rnn":
+        rnn_embed_size = model_config['rnn_embed_size']
+        rnn_hidden_size = model_config['rnn_hidden_size']
+        return CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
+    elif model_arch == "cnn-attn":
+        attn_embed_size = model_config['attn_embed_size']
+        attn_num_layers = model_config['attn_num_layers']
+        attn_num_heads = model_config['attn_num_heads']
+        return CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+    elif model_arch == "vitcnn-attn":
+        vitcnn_embed_size = model_config['vitcnn_embed_size']
+        vitcnn_num_layers = model_config['vitcnn_num_layers']
+        vitcnn_num_heads = model_config['vitcnn_num_heads']
+        return VITCNNAttentionModel(vitcnn_embed_size, vocab_size, vitcnn_num_heads, vitcnn_num_layers).to(device)
+    else:
+        raise ValueError("Model not recognized")
+
 def train(
     learning_rate,
     num_epochs,
@@ -120,6 +107,8 @@ def train(
     checkpoint_dir,
     model_config,
     saved_name,
+    save_every,
+    eval_every
 ):
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
@@ -138,35 +127,33 @@ def train(
     accelerator = Accelerator()  # Initialize Accelerator
     device = accelerator.device  # Use accelerator's device
     print(f"Using device: {device}")
-    
-    if model_arch == "cnn-rnn":
-        rnn_embed_size = model_config['rnn_embed_size']
-        rnn_hidden_size = model_config['rnn_hidden_size']
-        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
-    elif model_arch == "cnn-attn":
-        attn_embed_size = model_config['attn_embed_size']
-        attn_num_layers = model_config['attn_num_layers']
-        attn_num_heads = model_config['attn_num_heads']
-        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
-    elif model_arch == "yolovae-attn":
-        yolovae_embed_size = model_config['yolovae_embed_size']
-        yolovae_num_layers = model_config['yolovae_num_layers']
-        yolovae_num_heads = model_config['yolovae_num_heads']
-        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
-    else:
-        raise ValueError("Model not recognized")
+
+    model = get_model(model_config, vocab_size, device)
+    print("Model initialized")
     
     if mode == 'precomputed' and not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
+        image_train_loader, image_val_loader, _, _, _, _ = get_loader(
+            transform=transform,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            mode='image',
+            model_arch=model_arch,
+            dataset=dataset,
+            val_ratio=val_ratio,
+            test_ratio=test_ratio
+        )
+        
         precompute_images(
+            model,
             model_arch,
             dataset,
-            model_config,
-            num_workers,
-            transform,
-            batch_size,
-            val_ratio,
-            test_ratio  
+            image_train_loader,
+            image_val_loader
         )
+
+        # remove datasets
+        del image_train_loader, image_val_loader
+
     # Initialize SummaryWriter only on the main process
     if accelerator.is_main_process:
         if not os.path.exists(f"runs/{model_arch}/{dataset}/{saved_name}"):
@@ -196,14 +183,12 @@ def train(
     val_bleus_beam = []
     val_meteors_beam = []
     val_ciders_beam = []
-    
 
     bleu = NLGMetricverse(metrics=load_metric("bleu"))
     meteor = NLGMetricverse(metrics=load_metric("meteor"))
     cider = NLGMetricverse(metrics=load_metric("cider"))
 
-    eval_every = 5
-
+    print("Starting training...")
     for epoch in range(num_epochs):
         print(f"[Epoch {epoch+1} / {num_epochs}]")
         
@@ -285,6 +270,7 @@ def train(
                 print("Greedy:")
                 print(f"BLEU: {val_bleu_score_greedy:.4f} | METEOR: {val_meteor_score_greedy:.4f} | CIDEr: {val_cider_score_greedy:.4f}")
             
+            all_caption_tokens = []
             with torch.no_grad():
                 for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
                     enumerate(val_loader), total=len(val_loader), leave=False
@@ -296,6 +282,7 @@ def train(
                     print(f"Target: {ref_captions[0]}")
                     
                     all_pred_tokens_beam.extend(generated_captions_beam)
+                    all_caption_tokens.extend(ref_captions)
 
             if accelerator.is_main_process:
                 val_bleu_score_beam = bleu(
@@ -331,7 +318,7 @@ def train(
 
         # Checkpoint saving
         if save_model:
-            if (epoch + 1) % 10 == 0 and accelerator.is_main_process:
+            if (epoch + 1) % save_every == 0 and accelerator.is_main_process:
                 checkpoint = {
                     "state_dict": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
@@ -366,18 +353,20 @@ def train(
         print("Training complete!")
 
 if __name__ == "__main__":
-    args = sys.argv
-    config_path = args[1]
-    saved_name = config_path.split(".")[0]
-    saved_name = "-".join(saved_name.split("-")[3:])
-    
+    args = parse_args()
+    config_path = args.config_file
+    batch_size = args.batch_size
+    embed_size = args.embed_size
+    num_layers = args.num_layers
+    learning_rate = args.learning_rate
+
     with open(f'./configs/{config_path}', 'r') as file:
         config = yaml.safe_load(file)
 
-    learning_rate = float(config['training']['learning_rate'])
+    # learning_rate = float(config['training']['learning_rate'])
+    # batch_size = int(config['training']['batch_size'])
     num_epochs = int(config['training']['num_epochs'])
     num_workers = int(config['training']['num_workers'])
-    batch_size = int(config['training']['batch_size'])
     val_ratio = float(config['training']['val_ratio'])
     test_ratio = float(config['training']['test_ratio'])
     step_size = int(config['training']['step_size'])
@@ -386,26 +375,39 @@ if __name__ == "__main__":
     mode = config['training']['mode']
     dataset = config['training']['dataset']
     beam_width = int(config['training']['beam_width'])
+    eval_every = int(config['training']['eval_every'])
+    save_every = int(config['training']['save_every'])
     save_model = bool(config['training']['save_model'])
     load_model = bool(config['training']['load_model'])
-    checkpoint_dir = config['training']['checkpoint_dir']
-    
+
+    if "checkpoint_dir" in config['training']:
+        checkpoint_dir = config['training']['checkpoint_dir']
+    else:
+        checkpoint_dir = "./<insert_your_checkpoint>.pth.tar"
+
     model_config = {}
     
     if 'rnn_model' in config:
-        model_config['rnn_embed_size'] = int(config['rnn_model']['embed_size'])
+        model_config['rnn_embed_size'] = embed_size
         model_config['rnn_hidden_size'] = int(config['rnn_model']['hidden_size'])
 
     if 'attn_model' in config:
-        model_config['attn_embed_size'] = int(config['attn_model']['embed_size'])
-        model_config['attn_num_layers'] = int(config['attn_model']['num_layers'])
+        model_config['attn_embed_size'] = embed_size
+        model_config['attn_num_layers'] = num_layers
         model_config['attn_num_heads'] = int(config['attn_model']['num_heads'])
 
-    if 'yolovae_attn_model' in config:
-        model_config['yolovae_embed_size'] = int(config['yolovae_attn_model']['embed_size'])
-        model_config['yolovae_num_layers'] = int(config['yolovae_attn_model']['num_layers'])
-        model_config['yolovae_num_heads'] = int(config['yolovae_attn_model']['num_heads'])
-        
+    if 'vitcnn_attn_model' in config:
+        model_config['vitcnn_embed_size'] = embed_size
+        model_config['vitcnn_num_layers'] = num_layers
+        model_config['vitcnn_num_heads'] = int(config['vitcnn_attn_model']['num_heads'])
+    
+    if num_layers == -1:
+        saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}"
+    else:
+        saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}_nl{num_layers}"
+
+    print(f"Training model {model_arch}, {saved_name}, dataset {dataset}")
+
     train(
         learning_rate,
         num_epochs,
@@ -423,5 +425,7 @@ if __name__ == "__main__":
         load_model,
         checkpoint_dir,
         model_config,
-        saved_name
+        saved_name,
+        save_every,
+        eval_every
     )

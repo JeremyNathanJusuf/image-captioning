@@ -1,72 +1,23 @@
 import torch
 import torch.nn as nn
-import torchvision.models as models
 import torch.nn.functional as F
-
-import torch
-import torch.nn as nn
-import torchvision.models as models
-
-import torch
-import torch.nn as nn
-import torchvision.models as models
-
-class EncoderCNN(nn.Module):
-    def __init__(self, embed_size):
-        super(EncoderCNN, self).__init__()
-        # Initialize the InceptionV3 model with pretrained weights
-        self.inception = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT)
-        
-        # Dictionary to store activation from the desired layer
-        self.activation = {}
-
-        # Register forward hook on the Mixed_7c layer to capture features
-        self.inception.Mixed_7c.register_forward_hook(self.get_activation("Mixed_7c"))
-
-        # Pooling layer to convert the feature map to 1x1
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-
-    def get_activation(self, name):
-        # Helper function to store activation from the hook
-        def hook(model, input, output):
-            self.activation[name] = output
-        return hook
-
-    def forward(self, images):
-        # Forward pass through InceptionV3
-        _ = self.inception(images)  # Just to trigger the forward hook on Mixed_7c
-        
-        # Get features from the activation dictionary
-        features = self.activation["Mixed_7c"]
-        
-        # Apply global average pooling
-        features = self.pool(features)
-        
-        # Flatten and pass through the fully connected layer
-        features = features.view(features.size(0), -1)  # Flatten to [batch_size, 2048]        
-        return features
-
-
-
+from models.modules.encoder_cnn import EncoderCNN
+   
 class DecoderRNN(nn.Module):
-    def __init__(self, embed_size, hidden_size, vocab_size):
+    def __init__(self, embed_size, hidden_size, vocab_size, dropout=0.2):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
 
         self.fc1 = nn.Linear(2048, embed_size, bias = False)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout)
         self.batchnorm = nn.BatchNorm1d(embed_size)
 
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=True)
         self.fc2 = nn.Linear(hidden_size, vocab_size)
         
-
     def forward(self, features, captions):
-        # features: [batch_size, embed_size]
-        # captions: [batch_size, seq_len-1] (S0, ... S(n-1))
-        
         # Project the features back to the embedding size
         features = self.dropout(features)
         features = self.fc1(features)  # [batch_size, embed_size]
@@ -85,16 +36,25 @@ class DecoderRNN(nn.Module):
 class CNNtoRNN(nn.Module):
     def __init__(self, embed_size, hidden_size, vocab_size):
         super(CNNtoRNN, self).__init__()
-        self.encoderCNN = EncoderCNN(embed_size)
+        self.encoderCNN = EncoderCNN()
         self.decoderRNN = DecoderRNN(embed_size, hidden_size, vocab_size)
 
-    def forward(self, images, captions):
-        with torch.no_grad():
-            features = self.encoderCNN(images)
+    def forward(self, images, captions, mode='precomputed'):
+        if mode == 'precomputed':
+            features = images
+        else:
+            with torch.no_grad():
+                features = self.encoderCNN(images)
+                
         outputs = self.decoderRNN(features, captions)
         return outputs
     
-    def caption_images(self, images, vocabulary, max_length=50):
+    def precompute_image(self, images):
+        with torch.no_grad():
+            features = self.encoderCNN(images)
+        return features
+    
+    def caption_images(self, images, vocabulary, mode="precomputed", max_length=40):
         self.eval()
         batch_size = images.size(0)  # Get the batch size from images
         result_captions = [[] for _ in range(batch_size)]  # Initialize captions list for each image in the batch
@@ -102,7 +62,10 @@ class CNNtoRNN(nn.Module):
 
         with torch.no_grad():
             # Encode all images in the batch
-            img_features = self.encoderCNN(images)  # img_features shape: (batch_size, feature_dim)
+            if mode == 'precomputed':
+                img_features = images
+            else:
+                img_features = self.encoderCNN(images)  # img_features shape: (batch_size, feature_dim)
             img_features = self.decoderRNN.dropout(img_features)
             img_features = self.decoderRNN.fc1(img_features)  # [batch_size, embed_size]
             img_features = self.decoderRNN.batchnorm(img_features)
@@ -146,14 +109,17 @@ class CNNtoRNN(nn.Module):
         captions_text = [' '.join([vocabulary.itos[idx] for idx in caption]) for caption in result_captions]
         return captions_text
     
-    def caption_images_beam_search(self, images, vocabulary, beam_width=3, max_length=50):
+    def caption_images_beam_search(self, images, vocabulary, beam_width=3, mode="precomputed", max_length=50):
         self.eval()
         batch_size = images.size(0)  # Get the batch size from images
         # print("Batch size: ", batch_size)
         
         with torch.no_grad():
             # Encode all images in the batch
-            img_features = self.encoderCNN(images)
+            if mode == 'precomputed':
+                img_features = images
+            else:
+                img_features = self.encoderCNN(images)
             img_features = self.decoderRNN.dropout(img_features)
             img_features = self.decoderRNN.fc1(img_features)
             img_features = self.decoderRNN.batchnorm(img_features) 
@@ -161,12 +127,6 @@ class CNNtoRNN(nn.Module):
 
             # Initialize LSTM states with the encoded image features
             _, (states_h, states_c) = self.decoderRNN.lstm(img_features) # Shape: (1, batch_size, hidden_size)
-
-            # sequences = [[(
-            #     [vocabulary.stoi["<SOS>"]], 
-            #     0.0, 
-            #     (states[0][:, batch_idx, :], states[1][:, batch_idx, :])
-            # )] for batch_idx in range(batch_size)]  # (sequence, score, states)
 
             sequences = torch.Tensor([[vocabulary.stoi["<SOS>"]]]).repeat(batch_size, beam_width, 1, 1).long().to(images.device)
             scores = torch.zeros(batch_size, beam_width, dtype=torch.float, device=images.device)
@@ -176,10 +136,6 @@ class CNNtoRNN(nn.Module):
             lengths = torch.zeros(batch_size, beam_width, dtype=torch.long, device=images.device) # Shape: (batch_size, beam_width)
 
             for i in range(max_length):
-                # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)`
-                # print(scores.shape) # (batch_size, beam_width)
-                # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
-                # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
 
                 seq_inp = sequences.reshape(batch_size * beam_width, -1, 1)  # Shape: (batch_size * beam_width, seq_len, 1)
                 states_c = states_c.reshape(1, batch_size * beam_width, -1)  # Shape: (1, batch_size * beam_width, hidden_size)
@@ -196,11 +152,6 @@ class CNNtoRNN(nn.Module):
 
                 # take top beam_width sequences for each batch
                 top_log_probs, top_indices = log_probs.topk(beam_width, dim=2)  # Shapes: (batch_size, beam_width, beam_width)
-
-                # for every batch, take the top beam_width sequences with scores: score[t] = score[t-1] + top_log_probs[t]
-                # new_scores = (
-                #     lengths.unsqueeze(-1) * scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
-                # ) / (lengths.unsqueeze(-1) + 1 - done.unsqueeze(-1).float()) # Shape: (batch_size, beam_width, beam_width)
 
                 new_scores = (
                     scores.unsqueeze(-1) + (1 - done.unsqueeze(-1).float()) * top_log_probs
@@ -243,12 +194,6 @@ class CNNtoRNN(nn.Module):
                 if done.all():
                     break
 
-                # print(sequences.shape) # (batch_size, beam_width, seq_len, 1)
-                # print(scores.shape) # (batch_size, beam_width)
-                # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
-                # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
-                # print("--------------------------------")
-                
         result_captions = []
         for i in range(batch_size):
             # stop at the first <EOS> token

@@ -2,11 +2,11 @@ import argparse
 import subprocess
 import time
 
-batch_size = [32, 64, 128]
-learning_rate = [0.0001, 0.0005, 0.001]
+batch_size = [64, 128]
+learning_rate = [0.0005, 0.001]
 num_layers = [1, 2, 3]
 embed_size = [256, 512]
-config_file = ["config-mscoco-cnnrnn", "config-mscoco-cnnattn", "config-mscoco-yoloattn"]
+config_file = ["config-mscoco-cnnrnn", "config-mscoco-cnnattn", "config-mscoco-vitcnnattn"]
 
 for config in config_file:
     if "attn" in config:

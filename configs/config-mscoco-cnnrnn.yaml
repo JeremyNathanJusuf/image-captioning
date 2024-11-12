@@ -4,7 +4,8 @@ training:
   learning_rate: 0.0005
   step_size: 5
   gamma: 0.8
-  num_epochs: 100
+  num_epochs: 50
+  eval_every: 5
 
   # dataset settings
   num_workers: 2
@@ -13,15 +14,15 @@ training:
   test_ratio: 0.05
   
   # model settings
-  model_arch: 'cnn-rnn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
-  dataset: 'flickr' # 'mscoco' or 'flickr'
+  model_arch: 'cnn-rnn' # 'cnn-rnn' or 'cnn-attn' or 'vitcnn-attn'
+  dataset: 'mscoco' # 'mscoco' or 'flickr'
   mode: 'precomputed' # 'precomputed' or 'image'
-  beam_width: 20
+  beam_width: 3
 
   # save and load checkpoints
   save_model: true
   load_model: false
-  checkpoint_dir: './checkpoints/checkpoint_epoch_50.pth.tar'
+  save_every: 50
 
 # specify the model hyperparameters
 
@@ -29,14 +30,3 @@ training:
 rnn_model:
   embed_size: 512
   hidden_size: 512
-
-# CNN-Attention model
-attn_model:
-  embed_size: 512
-  num_layers: 2
-  num_heads: 4
-
-yolovae_attn_model:
-  embed_size: 512
-  num_layers: 2
-  num_heads: 4
