@@ -227,7 +227,7 @@ def get_loader(
         
         train_dataset = ImageCaptionDataset(root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         val_dataset = ImageCaptionDataset(root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
-        test_dataset = ImageCaptionDataset(root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+        # test_dataset = ImageCaptionDataset(root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         
     elif dataset == 'mscoco':
         train_caption_path = './mscoco/annotations/captions_train2014.json'
@@ -262,7 +262,7 @@ def get_loader(
         
         train_dataset = ImageCaptionDataset(train_root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         val_dataset = ImageCaptionDataset(val_test_root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
-        test_dataset = ImageCaptionDataset(val_test_root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
+        # test_dataset = ImageCaptionDataset(val_test_root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         
     else:
         raise ValueError("Invalid dataset. Choose either 'mscoco' or 'flickr'")
@@ -288,12 +288,12 @@ def get_loader(
         collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
     )
     
-    test_loader = DataLoader(
-        dataset=test_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=shuffle,
-        pin_memory=pin_memory,
-        collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
-    )
-    return train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset
+    # test_loader = DataLoader(
+    #     dataset=test_dataset,
+    #     batch_size=batch_size,
+    #     num_workers=num_workers,
+    #     shuffle=shuffle,
+    #     pin_memory=pin_memory,
+    #     collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
+    # )
+    return train_loader, val_loader, None, train_dataset, val_dataset, None

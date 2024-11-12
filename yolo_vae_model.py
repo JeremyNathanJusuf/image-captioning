@@ -4,7 +4,8 @@ import torch.nn.functional as F
 import torchvision.models as models
 from diffusers import AutoencoderTiny
 import math
-
+from ultralytics import YOLO
+from torchvision import transforms
 
 class EncoderCNN(nn.Module):
     def __init__(self, embed_size):
@@ -44,18 +45,68 @@ class EncoderCNN(nn.Module):
 class YOLOVAE():
     def __init__(self, embed_size):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.vae = AutoencoderTiny.from_pretrained("madebyollin/taesd").to(device)
-        self.cnn = EncoderCNN(embed_size).to(device)
+        # self.vae = AutoencoderTiny.from_pretrained("madebyollin/taesd").to(device)
+        # self.cnn = EncoderCNN(embed_size).to(device)
 
-        # yolo = YOLO("yolov8n.pt")
-        # self.yolo = torch.nn.modules.container.Sequential = yolo.model.__dict__["_modules"]["model"].to(device)
+        # self.yolo_model = YOLO("yolov8n.pt")
+        # self.yolo_layers = torch.nn.modules.container.Sequential = self.yolo_model.model.__dict__["_modules"]["model"].to(device)
+
+    def forward(self, images):
+        
+        # detect_output = {}
+        # def hook_fn(module, input, output):
+        #     detect_output["preds"] = output
+        
+        # detect_layer = self.yolo_layers[-1]  # The last layer is the Detect layer
+        # hook = detect_layer.register_forward_hook(hook_fn)
+        
+        # with torch.no_grad():
+        #     yolo_transform = transforms.Compose(
+        #         [
+        #             transforms.Resize((224, 224)),
+        #             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        #         ]
+        #     )
+        #     yolo_images = yolo_transform(images)
+        #     # clip to [0, 1]
+        #     yolo_images = torch.clamp(yolo_images, 0, 1)
+        #     _ = self.yolo_model(yolo_images, verbose=False)
+
+        # hook.remove()
+
+        # raw_predictions = detect_output["preds"][1][1]
+
+        # print("Raw predictions: ", raw_predictions.size())
+
+        # raw_predictions = raw_predictions.view(raw_predictions.size(0), -1)
+        # return raw_predictions
+
+        vae_features = self.vae.encoder(images)  # Shape: (batch_size, 4, 37, 37)
+        vae_features = vae_features.view(vae_features.size(0), -1)  # Flatten to [batch_size, 4*37*37]
+        # flatten_features = vae_features.view(vae_features.size(0), -1)  # Flatten to [batch_size, 8*64*64]
+        # return vae_features
+
+        # cnn_transform = transforms.Compose(
+        #     [
+        #         transforms.Resize((299, 299)),
+        #         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        #     ]
+        # )
+        # cnn_images = cnn_transform(images)
+
+        cnn_features = self.cnn(images)
+        concat_features = torch.cat((vae_features, cnn_features), dim=1)
+        return concat_features
+    
+class ViT(nn.Module):
+    def __init__(self, embed_size):
+        super(ViT, self).__init__()
+        self.vit = models.vit_b_16(weights=models.ViT_B_16_Weights.DEFAULT)
+        self.vit.head = nn.Identity() # Remove the classification head
         
     def forward(self, images):
-        vae_features = self.vae.encoder(images)  # Shape: (batch_size, 8, 37, 37)
-        flatten_features = vae_features.view(vae_features.size(0), -1)  # Flatten to [batch_size, 8*37*37]
-        cnn_features = self.cnn(images)
-        concat_features = torch.cat((flatten_features, cnn_features), dim=1)
-        return concat_features
+        features = self.vit(images)
+        return features
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
@@ -145,11 +196,13 @@ class DecoderLayer(nn.Module):
 class YOLOVAEAttentionModel(nn.Module):
     def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.1, max_seq_length=50):
         super(YOLOVAEAttentionModel, self).__init__()
-        self.yolo_vae = YOLOVAE(embed_size)
+        self.vit = ViT(embed_size)
+        self.fc1 = torch.nn.Linear(1000, embed_size)
 
-        self.fc_vae = nn.Linear(5776, embed_size // 4)
-        self.fc_cnn = nn.Linear(2048, embed_size // 4 * 3)
-        self.fc1 = nn.Linear(embed_size, embed_size)
+        # self.yolo_output_size = 4 * 37 * 37
+        # # self.fc_vae = nn.Linear(4 * 64 * 64, embed_size)
+        # self.fc_cnn = nn.Linear(2048, embed_size)
+        # self.fc_yolo = nn.Linear(self.yolo_output_size, embed_size)
         self.dropout = nn.Dropout(dropout)
         self.batchnorm = nn.BatchNorm1d(embed_size)
 
@@ -170,7 +223,7 @@ class YOLOVAEAttentionModel(nn.Module):
     
     def precompute_image(self, images):
         with torch.no_grad():
-            enc_output = self.yolo_vae.forward(images)
+            enc_output = self.vit.forward(images)
         return enc_output
     
     def forward(self, images, captions, mode):
@@ -178,18 +231,14 @@ class YOLOVAEAttentionModel(nn.Module):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo_vae.forward(images) # shape: (batch_size, 8*37*37)
-        
-        vae_output = self.fc_vae(enc_output[:, :5776])
-        cnn_output = self.fc_cnn(enc_output[:, 5776:])
-        enc_output = torch.cat((vae_output, cnn_output), dim=1)
+                enc_output = self.vit.forward(images) # shape: (batch_size, 8*64*64 + 2048)
+
         enc_output = self.fc1(enc_output)
         enc_output = self.dropout(enc_output)
         enc_output = self.batchnorm(enc_output)
+        enc_output = enc_output.unsqueeze(1)
 
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(captions)))
-        enc_output = enc_output.unsqueeze(1) # shape: (batch_size, 1, embed_size)
-        enc_output = enc_output.expand(-1, tgt_embedded.size(1), -1) # shape: (batch_size, seq_length, embed_size)
         src_mask, tgt_mask = self.generate_mask(enc_output, captions)
 
         dec_output = tgt_embedded
@@ -208,14 +257,15 @@ class YOLOVAEAttentionModel(nn.Module):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo_vae.forward(images)
-            vae_output = self.fc_vae(enc_output[:, :5776])
-            cnn_output = self.fc_cnn(enc_output[:, 5776:])
-            enc_output = torch.cat((vae_output, cnn_output), dim=1)
+                enc_output = self.vit.forward(images)
+                
+            # enc_output = self.fc_yolo(enc_output[:, :self.yolo_output_size])
+            # cnn_output = self.fc_cnn(enc_output[:, self.yolo_output_size:])
+            # enc_output = torch.concat((yolo_output, cnn_output), dim=1)
             enc_output = self.fc1(enc_output)
             enc_output = self.dropout(enc_output)
             enc_output = self.batchnorm(enc_output)
-            enc_output = enc_output.unsqueeze(1)  # Expand dimensions for transformer input
+            enc_output = enc_output.unsqueeze(1)
 
             # Initialize the caption with the <SOS> token
             batch_size = images.size(0)
@@ -274,14 +324,13 @@ class YOLOVAEAttentionModel(nn.Module):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo_vae.forward(images)
-            vae_output = self.fc_vae(enc_output[:, :5776])
-            cnn_output = self.fc_cnn(enc_output[:, 5776:])
-            enc_output = torch.cat((vae_output, cnn_output), dim=1)
+                enc_output = self.vit.forward(images)
+
             enc_output = self.fc1(enc_output)
             enc_output = self.dropout(enc_output)
-            enc_output = self.batchnorm(enc_output) 
+            enc_output = self.batchnorm(enc_output)
             enc_output = enc_output.unsqueeze(1)
+
             enc_output = enc_output.expand(-1, beam_width, -1)  # Shape: (batch_size, beam_width, feature_dim)
             enc_output = enc_output.reshape(batch_size * beam_width, -1, enc_output.size(-1))  # Shape: (batch_size*beam_width, seq_len, feature_dim)
 
@@ -296,7 +345,7 @@ class YOLOVAEAttentionModel(nn.Module):
                 # print(states_h.shape) # (1, batch_size, beam_width, hidden_size)
                 # print(states_c.shape) # (1, batch_size, beam_width, hidden_size)
 
-                seq_inp = sequences.reshape(batch_size * beam_width, -1, 1)  # Shape: (batch_size * beam_width, seq_len, 1)
+                seq_inp = sequences.reshape(batch_size * beam_width, -1)  # Shape: (batch_size * beam_width, seq_len, 1)
                 embedding = self.dropout(self.positional_encoding(self.decoder_embedding(seq_inp))) # Shape: (batch_size * beam_width, embed_size)
                 src_mask, tgt_mask = self.generate_mask(enc_output, seq_inp)
                 dec_output = embedding

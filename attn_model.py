@@ -163,10 +163,10 @@ class CNNAttentionModel(nn.Module):
         enc_output = self.fc1(enc_output)
         enc_output = self.dropout(enc_output)
         enc_output = self.batchnorm(enc_output)
+        enc_output = enc_output.unsqueeze(1)
 
         tgt_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(captions)))
-        enc_output = enc_output.unsqueeze(1)
-        enc_output = enc_output.expand(-1, tgt_embedded.size(1), -1) 
+        
         src_mask, tgt_mask = self.generate_mask(enc_output, captions)
 
         dec_output = tgt_embedded
@@ -249,8 +249,8 @@ class CNNAttentionModel(nn.Module):
                 enc_output = images
             else:
                 enc_output = self.encoderCNN(images)
-            enc_output = self.dropout(enc_output)
             enc_output = self.fc1(enc_output)
+            enc_output = self.dropout(enc_output)
             enc_output = self.batchnorm(enc_output) 
             enc_output = enc_output.unsqueeze(1)
             enc_output = enc_output.expand(-1, beam_width, -1)  # Shape: (batch_size, beam_width, feature_dim)

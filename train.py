@@ -17,6 +17,15 @@ from model import CNNtoRNN
 from attn_model import CNNAttentionModel
 from yolo_vae_model import YOLOVAEAttentionModel
 
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_file", type=str, required=True)
+    parser.add_argument("--embed_size", type=int, default=256)
+    parser.add_argument("--num_layer", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=64)
+    return parser.parse_args()
 
 def precompute_images(
     model_arch,
@@ -193,42 +202,41 @@ def train(
     meteor = NLGMetricverse(metrics=load_metric("meteor"))
     cider = NLGMetricverse(metrics=load_metric("cider"))
 
-    eval_every = 1
+    eval_every = 5
 
     for epoch in range(num_epochs):
         print(f"[Epoch {epoch+1} / {num_epochs}]")
         
-        # model.train()
-        # train_loss = 0
-        # for idx, (img_ids, imgs, captions, _) in tqdm(
-        #     enumerate(train_loader), total=len(train_loader), leave=False):
+        model.train()
+        train_loss = 0
+        for idx, (img_ids, imgs, captions, _) in tqdm(
+            enumerate(train_loader), total=len(train_loader), leave=False):
             
-        #     imgs = imgs.to(device)
-        #     captions = captions.to(device)
+            imgs = imgs.to(device)
+            captions = captions.to(device)
 
-        #     outputs = model(imgs, captions[:, :-1], mode=mode)
-        #     captions = captions[:, 1:]
-        #     loss = criterion(
-        #         outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
-        #     )
+            outputs = model(imgs, captions[:, :-1], mode=mode)
+            captions = captions[:, 1:]
+            loss = criterion(
+                outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
+            )
 
-        #     train_loss += loss.item()
+            train_loss += loss.item()
 
-        #     optimizer.zero_grad()
-        #     accelerator.backward(loss)  # Use accelerator's backward
-        #     optimizer.step()
+            optimizer.zero_grad()
+            accelerator.backward(loss)  # Use accelerator's backward
+            optimizer.step()
 
-        # train_loss /= len(train_loader)
-        # if accelerator.is_main_process:
-        #     train_losses.append(train_loss)
-        #     writer.add_scalar("Training loss", train_loss, global_step=epoch)
+        train_loss /= len(train_loader)
+        if accelerator.is_main_process:
+            train_losses.append(train_loss)
+            writer.add_scalar("Training loss", train_loss, global_step=epoch)
             
-        #     print(f"[Training] loss: {train_loss:.4f}")
+            print(f"[Training] loss: {train_loss:.4f}")
 
         # Evaluation
         if (epoch + 1) % eval_every == 0:
             model.eval()
-            val_loss = 0
 
             # Accumulate predictions and references
             all_pred_tokens_greedy = []
@@ -240,17 +248,13 @@ def train(
                     enumerate(val_loader), total=len(val_loader), leave=False
                 ):
                     generated_captions_greedy = model.caption_images(imgs, train_dataset.vocab, mode=mode)
-                    generated_captions_beam = model.caption_images_beam_search(imgs, train_dataset.vocab, beam_width, mode=mode)
-
                     # print("Images: ", imgs)
                     print(f"Predicted (greedy): {generated_captions_greedy[0]}")
-                    print(f"Predicted (beam): {generated_captions_beam[0]}")
                     print(f"Target: {ref_captions[0]}")
                     
                     all_pred_tokens_greedy.extend(generated_captions_greedy)
-                    all_pred_tokens_beam.extend(generated_captions_beam)
                     all_caption_tokens.extend(ref_captions)
-                    
+
             if accelerator.is_main_process:
                 # Compute metrics on the main process
                 val_bleu_score_greedy = bleu(
@@ -280,7 +284,20 @@ def train(
                 
                 print("Greedy:")
                 print(f"BLEU: {val_bleu_score_greedy:.4f} | METEOR: {val_meteor_score_greedy:.4f} | CIDEr: {val_cider_score_greedy:.4f}")
+            
+            with torch.no_grad():
+                for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
+                    enumerate(val_loader), total=len(val_loader), leave=False
+                ):
+                    generated_captions_beam = model.caption_images_beam_search(imgs, train_dataset.vocab, beam_width, mode=mode)
 
+                    # print("Images: ", imgs)
+                    print(f"Predicted (beam): {generated_captions_beam[0]}")
+                    print(f"Target: {ref_captions[0]}")
+                    
+                    all_pred_tokens_beam.extend(generated_captions_beam)
+
+            if accelerator.is_main_process:
                 val_bleu_score_beam = bleu(
                     predictions=all_pred_tokens_beam,
                     references=all_caption_tokens,
