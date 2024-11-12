@@ -105,7 +105,6 @@ def train(
     model_arch,
     mode,
     dataset,
-    inference_type,
     beam_width,
     save_model,
     load_model,
@@ -113,30 +112,6 @@ def train(
     model_config,
     saved_name,
 ):
-    if model_arch == "cnn-rnn":
-        rnn_embed_size = model_config['rnn_embed_size']
-        rnn_hidden_size = model_config['rnn_hidden_size']
-    elif model_arch == "cnn-attn":
-        attn_embed_size = model_config['attn_embed_size']
-        attn_num_layers = model_config['attn_num_layers']
-        attn_num_heads = model_config['attn_num_heads']
-    elif model_arch == "yolovae-attn":
-        yolovae_embed_size = model_config['yolovae_embed_size']
-        yolovae_num_layers = model_config['yolovae_num_layers']
-        yolovae_num_heads = model_config['yolovae_num_heads']
-    
-    if mode == 'precomputed' and not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
-        precompute_images(
-            model_arch,
-            dataset,
-            model_config,
-            num_workers,
-            transform,
-            batch_size,
-            val_ratio,
-            test_ratio  
-        )
-    
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
         num_workers=num_workers,
@@ -154,7 +129,35 @@ def train(
     accelerator = Accelerator()  # Initialize Accelerator
     device = accelerator.device  # Use accelerator's device
     print(f"Using device: {device}")
-
+    
+    if model_arch == "cnn-rnn":
+        rnn_embed_size = model_config['rnn_embed_size']
+        rnn_hidden_size = model_config['rnn_hidden_size']
+        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
+    elif model_arch == "cnn-attn":
+        attn_embed_size = model_config['attn_embed_size']
+        attn_num_layers = model_config['attn_num_layers']
+        attn_num_heads = model_config['attn_num_heads']
+        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+    elif model_arch == "yolovae-attn":
+        yolovae_embed_size = model_config['yolovae_embed_size']
+        yolovae_num_layers = model_config['yolovae_num_layers']
+        yolovae_num_heads = model_config['yolovae_num_heads']
+        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
+    else:
+        raise ValueError("Model not recognized")
+    
+    if mode == 'precomputed' and not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
+        precompute_images(
+            model_arch,
+            dataset,
+            model_config,
+            num_workers,
+            transform,
+            batch_size,
+            val_ratio,
+            test_ratio  
+        )
     # Initialize SummaryWriter only on the main process
     if accelerator.is_main_process:
         if not os.path.exists(f"runs/{model_arch}/{dataset}/{saved_name}"):
@@ -163,17 +166,6 @@ def train(
     else:
         writer = None
     step = 0
-
-    if model_arch == "cnn-rnn":
-        model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size)
-    elif model_arch == "cnn-attn":
-        model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers)
-    elif model_arch == "yolovae-attn":
-        model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers)
-    else:
-        raise ValueError("Model not recognized")
-    
-    model = model.to(device)
     
     pad_idx = train_dataset.vocab.stoi['<PAD>']
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
@@ -189,9 +181,13 @@ def train(
     )
 
     train_losses = []
-    val_bleus = []
-    val_meteors = []
-    val_ciders = []
+    val_bleus_greedy = []
+    val_meteors_greedy = []
+    val_ciders_greedy = []
+    val_bleus_beam = []
+    val_meteors_beam = []
+    val_ciders_beam = []
+    
 
     bleu = NLGMetricverse(metrics=load_metric("bleu"))
     meteor = NLGMetricverse(metrics=load_metric("meteor"))
@@ -235,58 +231,85 @@ def train(
             val_loss = 0
 
             # Accumulate predictions and references
-            all_pred_tokens = []
+            all_pred_tokens_greedy = []
+            all_pred_tokens_beam = []
             all_caption_tokens = []
 
             with torch.no_grad():
                 for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
                     enumerate(val_loader), total=len(val_loader), leave=False
                 ):
-                    if inference_type == 'greedy':
-                        generated_captions = model.caption_images(imgs, train_dataset.vocab, mode=mode)
-                    elif inference_type == 'beam':
-                        generated_captions = model.caption_images_beam_search(imgs, train_dataset.vocab, beam_width, mode=mode)
-                    else:
-                        raise ValueError("Inference type not recognized")
+                    generated_captions_greedy = model.caption_images(imgs, train_dataset.vocab, mode=mode)
+                    generated_captions_beam = model.caption_images_beam_search(imgs, train_dataset.vocab, beam_width, mode=mode)
 
                     # print("Images: ", imgs)
-                    print(f"Predicted: {generated_captions[0]}")
+                    print(f"Predicted (greedy): {generated_captions_greedy[0]}")
+                    print(f"Predicted (beam): {generated_captions_beam[0]}")
                     print(f"Target: {ref_captions[0]}")
                     
-                    all_pred_tokens.extend(generated_captions)
+                    all_pred_tokens_greedy.extend(generated_captions_greedy)
+                    all_pred_tokens_beam.extend(generated_captions_beam)
                     all_caption_tokens.extend(ref_captions)
                     
-
-            # val_loss /= len(val_loader)
             if accelerator.is_main_process:
                 # Compute metrics on the main process
-                val_bleu_score = bleu(
-                    predictions=all_pred_tokens,
+                val_bleu_score_greedy = bleu(
+                    predictions=all_pred_tokens_greedy,
                     references=all_caption_tokens,
                     reduce_fn='mean')['bleu']['score']
 
-                val_meteor_score = meteor(
-                    predictions=all_pred_tokens,
+                val_meteor_score_greedy = meteor(
+                    predictions=all_pred_tokens_greedy,
                     references=all_caption_tokens,
                     reduce_fn='mean')['meteor']['score']
 
-                val_cider_score = cider(
-                    predictions=all_pred_tokens,
+                val_cider_score_greedy = cider(
+                    predictions=all_pred_tokens_greedy,
                     references=all_caption_tokens,
                     reduce_fn='mean')['cider']['score']
 
                 # val_losses.append(val_loss)
-                val_bleus.append(val_bleu_score)
-                val_meteors.append(val_meteor_score)
-                val_ciders.append(val_cider_score)
+                val_bleus_greedy.append(val_bleu_score_greedy)
+                val_meteors_greedy.append(val_meteor_score_greedy)
+                val_ciders_greedy.append(val_cider_score_greedy)
 
                 # writer.add_scalar("Validation loss", val_loss, global_step=epoch)
-                writer.add_scalar("Validation BLEU", val_bleu_score, global_step=epoch)
-                writer.add_scalar("Validation METEOR", val_meteor_score, global_step=epoch)
-                writer.add_scalar("Validation CIDEr", val_cider_score, global_step=epoch)
+                writer.add_scalar("Validation Greedy BLEU", val_bleu_score_greedy, global_step=epoch)
+                writer.add_scalar("Validation Greedy METEOR", val_meteor_score_greedy, global_step=epoch)
+                writer.add_scalar("Validation Greedy CIDEr", val_cider_score_greedy, global_step=epoch)
+                
+                print("Greedy:")
+                print(f"BLEU: {val_bleu_score_greedy:.4f} | METEOR: {val_meteor_score_greedy:.4f} | CIDEr: {val_cider_score_greedy:.4f}")
 
-                print(f"BLEU: {val_bleu_score:.4f} | METEOR: {val_meteor_score:.4f} | CIDEr: {val_cider_score:.4f}")
+                val_bleu_score_beam = bleu(
+                    predictions=all_pred_tokens_beam,
+                    references=all_caption_tokens,
+                    reduce_fn='mean')['bleu']['score']
 
+                val_meteor_score_beam = meteor(
+                    predictions=all_pred_tokens_beam,
+                    references=all_caption_tokens,
+                    reduce_fn='mean')['meteor']['score']
+
+                val_cider_score_beam = cider(
+                    predictions=all_pred_tokens_beam,
+                    references=all_caption_tokens,
+                    reduce_fn='mean')['cider']['score']
+
+                # val_losses.append(val_loss)
+                val_bleus_beam.append(val_bleu_score_beam)
+                val_meteors_beam.append(val_meteor_score_beam)
+                val_ciders_beam.append(val_cider_score_beam)
+
+                # writer.add_scalar("Validation loss", val_loss, global_step=epoch)
+                writer.add_scalar("Validation beam BLEU", val_bleu_score_beam, global_step=epoch)
+                writer.add_scalar("Validation beam METEOR", val_meteor_score_beam, global_step=epoch)
+                writer.add_scalar("Validation beam CIDEr", val_cider_score_beam, global_step=epoch)
+
+                print("beam:")
+                print(f"BLEU: {val_bleu_score_beam:.4f} | METEOR: {val_meteor_score_beam:.4f} | CIDEr: {val_cider_score_beam:.4f}")
+                
+                
         scheduler.step()
 
         # Checkpoint saving
@@ -304,9 +327,12 @@ def train(
 
                 metrics = {
                     'train_losses': train_losses,
-                    'val_bleus': val_bleus,
-                    'val_meteors': val_meteors,
-                    'val_ciders': val_ciders
+                    'val_greedy_bleus': val_bleus_greedy,
+                    'val_greedy_meteors': val_meteors_greedy,
+                    'val_greedy_ciders': val_ciders_greedy,
+                    'val_beam_bleus': val_bleus_beam,
+                    'val_beam_meteors': val_meteors_beam,
+                    'val_beam_ciders': val_ciders_beam
                 }
 
                 # Save metrics to a JSON file
@@ -342,7 +368,6 @@ if __name__ == "__main__":
     model_arch = config['training']['model_arch']
     mode = config['training']['mode']
     dataset = config['training']['dataset']
-    inference_type = config['training']['inference_type']
     beam_width = int(config['training']['beam_width'])
     save_model = bool(config['training']['save_model'])
     load_model = bool(config['training']['load_model'])
@@ -376,7 +401,6 @@ if __name__ == "__main__":
         model_arch,
         mode,
         dataset,
-        inference_type,
         beam_width,
         save_model,
         load_model,

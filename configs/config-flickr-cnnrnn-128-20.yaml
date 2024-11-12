@@ -13,10 +13,9 @@ training:
   test_ratio: 0.05
   
   # model settings
-  model_arch: 'cnn-attn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
+  model_arch: 'cnn-rnn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
   dataset: 'flickr' # 'mscoco' or 'flickr'
   mode: 'precomputed' # 'precomputed' or 'image'
-  inference_type: 'beam' # 'greedy' or 'beam'
   beam_width: 20
 
   # save and load checkpoints
