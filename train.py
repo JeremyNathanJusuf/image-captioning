@@ -6,6 +6,7 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 import pickle
+import sys
 from torch.utils.tensorboard import SummaryWriter
 from accelerate import Accelerator
 from utils import save_checkpoint, load_checkpoint, transform
@@ -15,56 +16,46 @@ from nlgmetricverse import NLGMetricverse, load_metric
 from model import CNNtoRNN
 from attn_model import CNNAttentionModel
 from yolo_vae_model import YOLOVAEAttentionModel
-# Configurations
-with open('config.yaml', 'r') as file:
-    config = yaml.safe_load(file)
 
-learning_rate = float(config['training']['learning_rate'])
-num_epochs = int(config['training']['num_epochs'])
-num_workers = int(config['training']['num_workers'])
-batch_size = int(config['training']['batch_size'])
-step_size = int(config['training']['step_size'])
-gamma = float(config['training']['gamma'])
-model_arch = config['training']['model_arch']
-mode = config['training']['mode']
-dataset = config['training']['dataset']
-inference_type = config['training']['inference_type']
-beam_width = int(config['training']['beam_width'])
-save_model = bool(config['training']['save_model'])
-load_model = bool(config['training']['load_model'])
-checkpoint_dir = config['training']['checkpoint_dir']
 
-if 'rnn_model' in config:
-    rnn_embed_size = int(config['rnn_model']['embed_size'])
-    rnn_hidden_size = int(config['rnn_model']['hidden_size'])
-
-if 'attn_model' in config:
-    attn_embed_size = int(config['attn_model']['embed_size'])
-    attn_num_layers = int(config['attn_model']['num_layers'])
-    attn_num_heads = int(config['attn_model']['num_heads'])
-
-if 'yolovae_attn_model' in config:
-    yolovae_embed_size = int(config['yolovae_attn_model']['embed_size'])
-    yolovae_num_layers = int(config['yolovae_attn_model']['num_layers'])
-    yolovae_num_heads = int(config['yolovae_attn_model']['num_heads'])
-
-def precompute_images():
+def precompute_images(
+    model_arch,
+    dataset,
+    model_config,
+    num_workers,
+    transform,
+    batch_size,
+    val_ratio,
+    test_ratio  
+):
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
         num_workers=num_workers,
         batch_size=batch_size,
         mode='image',
         model_arch=model_arch,
-        dataset=dataset
+        dataset=dataset,
+        val_ratio=val_ratio,
+        test_ratio=test_ratio
     )
+    
     vocab_size = len(train_dataset.vocab)
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     if model_arch == "cnn-rnn":
+        rnn_embed_size = model_config['rnn_embed_size']
+        rnn_hidden_size = model_config['rnn_hidden_size']
         model = CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
     elif model_arch == "cnn-attn":
+        attn_embed_size = model_config['attn_embed_size']
+        attn_num_layers = model_config['attn_num_layers']
+        attn_num_heads = model_config['attn_num_heads']
         model = CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
     elif model_arch == "yolovae-attn":
+        yolovae_embed_size = model_config['yolovae_embed_size']
+        yolovae_num_layers = model_config['yolovae_num_layers']
+        yolovae_num_heads = model_config['yolovae_num_heads']
         model = YOLOVAEAttentionModel(yolovae_embed_size, vocab_size, yolovae_num_heads, yolovae_num_layers).to(device)
     else:
         raise ValueError("Model not recognized")
@@ -102,9 +93,49 @@ def precompute_images():
                 with open(filepath, 'wb') as f:
                     pickle.dump(outputs[i].cpu(), f)
                 
-def train(model_arch=model_arch, dataset=dataset):
+def train(
+    learning_rate,
+    num_epochs,
+    num_workers,
+    batch_size,
+    val_ratio,
+    test_ratio,
+    step_size,
+    gamma,
+    model_arch,
+    mode,
+    dataset,
+    inference_type,
+    beam_width,
+    save_model,
+    load_model,
+    checkpoint_dir,
+    model_config,
+    saved_name,
+):
+    if model_arch == "cnn-rnn":
+        rnn_embed_size = model_config['rnn_embed_size']
+        rnn_hidden_size = model_config['rnn_hidden_size']
+    elif model_arch == "cnn-attn":
+        attn_embed_size = model_config['attn_embed_size']
+        attn_num_layers = model_config['attn_num_layers']
+        attn_num_heads = model_config['attn_num_heads']
+    elif model_arch == "yolovae-attn":
+        yolovae_embed_size = model_config['yolovae_embed_size']
+        yolovae_num_layers = model_config['yolovae_num_layers']
+        yolovae_num_heads = model_config['yolovae_num_heads']
+    
     if mode == 'precomputed' and not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
-        precompute_images()
+        precompute_images(
+            model_arch,
+            dataset,
+            model_config,
+            num_workers,
+            transform,
+            batch_size,
+            val_ratio,
+            test_ratio  
+        )
     
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
@@ -112,7 +143,9 @@ def train(model_arch=model_arch, dataset=dataset):
         batch_size=batch_size,
         mode=mode,
         model_arch=model_arch,
-        dataset=dataset
+        dataset=dataset,
+        val_ratio=val_ratio,
+        test_ratio=test_ratio
     )
     
     vocab_size = len(train_dataset.vocab)
@@ -124,9 +157,9 @@ def train(model_arch=model_arch, dataset=dataset):
 
     # Initialize SummaryWriter only on the main process
     if accelerator.is_main_process:
-        if not os.path.exists(f"runs/{dataset}/{model_arch}"):
-            os.makedirs(f"runs/{dataset}/{model_arch}")
-        writer = SummaryWriter(f"runs/{dataset}/{model_arch}")
+        if not os.path.exists(f"runs/{model_arch}/{dataset}/{saved_name}"):
+            os.makedirs(f"runs/{model_arch}/{dataset}/{saved_name}")
+        writer = SummaryWriter(f"runs/{model_arch}/{dataset}/{saved_name}")
     else:
         writer = None
     step = 0
@@ -145,7 +178,7 @@ def train(model_arch=model_arch, dataset=dataset):
     pad_idx = train_dataset.vocab.stoi['<PAD>']
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
     optimizer = optim.Adam(lr=learning_rate, params=model.parameters())
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.8)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
     
     if load_model:
         step = load_checkpoint(torch.load(checkpoint_dir), model, optimizer)
@@ -264,9 +297,9 @@ def train(model_arch=model_arch, dataset=dataset):
                     "optimizer": optimizer.state_dict(),
                     "step": step,
                 }
-                if not os.path.exists(f"./checkpoints/{model_arch}/{dataset}"):
-                    os.makedirs(f"./checkpoints/{model_arch}/{dataset}")
-                filename = f"./checkpoints/{model_arch}/{dataset}/checkpoint_epoch_{epoch + 1}.pth.tar"
+                if not os.path.exists(f"./checkpoints/{model_arch}/{dataset}/{saved_name}"):
+                    os.makedirs(f"./checkpoints/{model_arch}/{dataset}/{saved_name}")
+                filename = f"./checkpoints/{model_arch}/{dataset}/{saved_name}/checkpoint_epoch_{epoch + 1}.pth.tar"
                 save_checkpoint(checkpoint, filename)
 
                 metrics = {
@@ -277,9 +310,9 @@ def train(model_arch=model_arch, dataset=dataset):
                 }
 
                 # Save metrics to a JSON file
-                if not os.path.exists(f'./metric_logs/{model_arch}/{dataset}'):
-                    os.makedirs(f'./metric_logs/{model_arch}/{dataset}')
-                metrics_file_path = f'./metric_logs/{model_arch}/{dataset}/train_val_to_epoch_{epoch+1}.json'
+                if not os.path.exists(f'./metric_logs/{model_arch}/{dataset}/{saved_name}'):
+                    os.makedirs(f'./metric_logs/{model_arch}/{dataset}/{saved_name}')
+                metrics_file_path = f'./metric_logs/{model_arch}/{dataset}/{saved_name}//train_val_to_epoch_{epoch+1}.json'
                 os.makedirs(os.path.dirname(metrics_file_path), exist_ok=True)
                 with open(metrics_file_path, 'w') as json_file:
                     json.dump(metrics, json_file, indent=4)
@@ -289,7 +322,64 @@ def train(model_arch=model_arch, dataset=dataset):
     if accelerator.is_main_process:
         print("Training complete!")
 
-
 if __name__ == "__main__":
-    train()
-    # precompute_images()
+    args = sys.argv
+    config_path = args[1]
+    saved_name = config_path.split(".")[0]
+    
+    with open(f'./configs/{config_path}', 'r') as file:
+        config = yaml.safe_load(file)
+
+    learning_rate = float(config['training']['learning_rate'])
+    num_epochs = int(config['training']['num_epochs'])
+    num_workers = int(config['training']['num_workers'])
+    batch_size = int(config['training']['batch_size'])
+    val_ratio = float(config['training']['val_ratio'])
+    test_ratio = float(config['training']['test_ratio'])
+    step_size = int(config['training']['step_size'])
+    gamma = float(config['training']['gamma'])
+    model_arch = config['training']['model_arch']
+    mode = config['training']['mode']
+    dataset = config['training']['dataset']
+    inference_type = config['training']['inference_type']
+    beam_width = int(config['training']['beam_width'])
+    save_model = bool(config['training']['save_model'])
+    load_model = bool(config['training']['load_model'])
+    checkpoint_dir = config['training']['checkpoint_dir']
+    
+    model_config = {}
+    
+    if 'rnn_model' in config:
+        model_config['rnn_embed_size'] = int(config['rnn_model']['embed_size'])
+        model_config['rnn_hidden_size'] = int(config['rnn_model']['hidden_size'])
+
+    if 'attn_model' in config:
+        model_config['attn_embed_size'] = int(config['attn_model']['embed_size'])
+        model_config['attn_num_layers'] = int(config['attn_model']['num_layers'])
+        model_config['attn_num_heads'] = int(config['attn_model']['num_heads'])
+
+    if 'yolovae_attn_model' in config:
+        model_config['yolovae_embed_size'] = int(config['yolovae_attn_model']['embed_size'])
+        model_config['yolovae_num_layers'] = int(config['yolovae_attn_model']['num_layers'])
+        model_config['yolovae_num_heads'] = int(config['yolovae_attn_model']['num_heads'])
+        
+    train(
+        learning_rate,
+        num_epochs,
+        num_workers,
+        batch_size,
+        val_ratio,
+        test_ratio,
+        step_size,
+        gamma,
+        model_arch,
+        mode,
+        dataset,
+        inference_type,
+        beam_width,
+        save_model,
+        load_model,
+        checkpoint_dir,
+        model_config,
+        saved_name
+    )

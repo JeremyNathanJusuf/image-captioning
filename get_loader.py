@@ -13,13 +13,6 @@ import nltk
 from nltk.tokenize import word_tokenize
 import string
 import pickle
-
-# Configurations
-with open('config.yaml', 'r') as file:
-    config = yaml.safe_load(file)
-
-test_ratio = float(config['training']['test_ratio'])
-val_ratio = float(config['training']['val_ratio'])
 seed = 42
 
 # We want to convert text -> numerical values
@@ -75,82 +68,6 @@ class Vocabulary:
             self.stoi[token] if token in self.stoi else self.stoi["<UNK>"]
             for token in tokenized_text
         ]
-
-class PrecomputedDataset(Dataset):
-    def __init__(self, root_dir, captions_file, precomputed_dir, dataset, model_arch, freq_threshold=5, max_length=70):
-        self.root_dir = root_dir
-        self.df = captions_file
-        self.precomputed_dir = precomputed_dir
-        self.dataset = dataset
-        self.model_arch = model_arch
-        # remove nan values
-        self.df = self.df.dropna()
-
-        # Get img, caption columns
-        self.imgs = self.df["image"].tolist()
-        raw_captions = self.df["caption"].tolist()
-
-        for i in range(len(raw_captions)):
-            for j in range(len(raw_captions[i])):
-                if pd.isnull(raw_captions[i][j]):
-                    raw_captions[i][j] = ""
-                else:
-                    raw_captions[i][j] = raw_captions[i][j].lower().strip().strip("\n")
-                    raw_captions[i][j] = "".join([char for char in raw_captions[i][j] if char not in string.punctuation])
-
-        self.ref_captions = raw_captions
-        
-        # Initialize vocabulary and build vocab
-        self.vocab = Vocabulary(freq_threshold)
-        self.vocab.build_vocabulary(raw_captions)
-
-        # Preprocess captions: tokenize and numericalize
-        # self.tokenized_captions = []
-        self.numericalized_captions = []
-        for captions in raw_captions:
-            caption_list = []
-            for caption in captions:
-                # Tokenize the caption
-                tokens = self.vocab.tokenizer_eng(caption)
-                # self.tokenized_captions.append(tokens)
-                
-                # Numericalize the caption with <SOS> and <EOS> tokens
-                numericalized = [self.vocab.stoi["<SOS>"]]
-                numericalized += self.vocab.numericalize(caption)
-                numericalized.append(self.vocab.stoi["<EOS>"])
-                caption_list.append(numericalized)
-            
-            self.numericalized_captions.append(caption_list)
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, index):
-        # Image loading
-        img_id = self.imgs[index]
-        
-        # load the precomputed tensor from pickle folder
-        with open(os.path.join(self.precomputed_dir, self.model_arch, self.dataset, str(img_id)), 'rb') as f:
-            encoded_output = pickle.load(f)
-        
-        # Ensure the loaded data is a PyTorch tensor
-        if not isinstance(encoded_output, torch.Tensor):
-            encoded_output = torch.tensor(img)
-        
-        ref_caption = self.ref_captions[index]
-
-        # Retrieve preprocessed numericalized caption and tokens
-        numericalized_caption = self.numericalized_captions[index]
-        # caption_tokens = self.tokenized_captions[index]
-        
-        length = len(numericalized_caption)
-        # sample the caption
-        caption_idx = torch.randint(0, length, (1,)).item()
-        numericalized_caption = numericalized_caption[caption_idx]
-        # caption_tokens = caption_tokens[caption_idx]
-
-        return encoded_output, numericalized_caption, ref_caption
-
 
 class ImageCaptionDataset(Dataset):
     def __init__(self, root_dir, captions_file, mode='precomputed', precomputed_dir=None, dataset=None, model_arch=None, transform=None, freq_threshold=5, max_length=70):
@@ -283,6 +200,8 @@ class MyCollate:
 
 def get_loader(
     transform,
+    val_ratio=0.1,
+    test_ratio=0.1,
     batch_size=32,
     num_workers=8,
     mode='precomputed',

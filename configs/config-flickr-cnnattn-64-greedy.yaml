@@ -1,10 +1,10 @@
 training:
 
   # learning settings
-  learning_rate: 0.001
+  learning_rate: 0.0005
   step_size: 5
   gamma: 0.8
-  num_epochs: 50
+  num_epochs: 100
 
   # dataset settings
   num_workers: 2
@@ -13,14 +13,14 @@ training:
   test_ratio: 0.05
   
   # model settings
-  model_arch: 'yolovae-attn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
-  dataset: 'mscoco' # 'mscoco' or 'flickr'
+  model_arch: 'cnn-attn' # 'cnn-rnn' or 'cnn-attn' or 'yolovae-attn'
+  dataset: 'flickr' # 'mscoco' or 'flickr'
   mode: 'precomputed' # 'precomputed' or 'image'
   inference_type: 'greedy' # 'greedy' or 'beam'
-  beam_width: 3
+  beam_width: 20
 
   # save and load checkpoints
-  save_model: false
+  save_model: true
   load_model: false
   checkpoint_dir: './checkpoints/checkpoint_epoch_50.pth.tar'
 
