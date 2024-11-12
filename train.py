@@ -202,32 +202,32 @@ def train(
     for epoch in range(num_epochs):
         print(f"[Epoch {epoch+1} / {num_epochs}]")
         
-        model.train()
-        train_loss = 0
-        for idx, (img_ids, imgs, captions, _) in tqdm(
-            enumerate(train_loader), total=len(train_loader), leave=False):
+        # model.train()
+        # train_loss = 0
+        # for idx, (img_ids, imgs, captions, _) in tqdm(
+        #     enumerate(train_loader), total=len(train_loader), leave=False):
             
-            imgs = imgs.to(device)
-            captions = captions.to(device)
+        #     imgs = imgs.to(device)
+        #     captions = captions.to(device)
 
-            outputs = model(imgs, captions[:, :-1], mode=mode)
-            captions = captions[:, 1:]
-            loss = criterion(
-                outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
-            )
+        #     outputs = model(imgs, captions[:, :-1], mode=mode)
+        #     captions = captions[:, 1:]
+        #     loss = criterion(
+        #         outputs.reshape(-1, outputs.shape[2]), captions.reshape(-1)
+        #     )
 
-            train_loss += loss.item()
+        #     train_loss += loss.item()
 
-            optimizer.zero_grad()
-            accelerator.backward(loss)  # Use accelerator's backward
-            optimizer.step()
+        #     optimizer.zero_grad()
+        #     accelerator.backward(loss)  # Use accelerator's backward
+        #     optimizer.step()
 
-        train_loss /= len(train_loader)
-        if accelerator.is_main_process:
-            train_losses.append(train_loss)
-            writer.add_scalar("Training loss", train_loss, global_step=epoch)
+        # train_loss /= len(train_loader)
+        # if accelerator.is_main_process:
+        #     train_losses.append(train_loss)
+        #     writer.add_scalar("Training loss", train_loss, global_step=epoch)
             
-            print(f"[Training] loss: {train_loss:.4f}")
+        #     print(f"[Training] loss: {train_loss:.4f}")
 
         # Evaluation
         if (epoch + 1) % eval_every == 0:
