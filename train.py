@@ -25,10 +25,13 @@ from models.yolocnnattn_model import YOLOCNNAttentionModel
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True)
-    parser.add_argument("--embed_size", type=int, default=256)
-    parser.add_argument("--num_layers", type=int, default=-1)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--embed_size", type=int, default=256)
+    parser.add_argument("--num_layers", type=int, default=-1)
+    parser.add_argument("--checkpoint_dir", type=str)
+    parser.add_argument("--dataset", type=str, default="flickr")
+    parser.add_argument("--model_arch", type=str, default="cnn-rnn")
     return parser.parse_args()
 
 def precompute_images(

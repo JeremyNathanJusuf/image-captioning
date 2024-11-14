@@ -213,45 +213,32 @@ def eval(
        
 if __name__ == "__main__":
     args = parse_args()
-    config_path = args.config_file
-    print(f"Using config file: {config_path}")
-    with open(f'./configs/{config_path}', 'r') as file:
-        config = yaml.safe_load(file)
-
-    learning_rate = float(config['training']['learning_rate'])
-    num_epochs = int(config['training']['num_epochs'])
-    num_workers = int(config['training']['num_workers'])
-    batch_size = int(config['training']['batch_size'])
-    val_ratio = float(config['training']['val_ratio'])
-    test_ratio = float(config['training']['test_ratio'])
-    model_arch = config['training']['model_arch']
-    mode = config['training']['mode']
-    dataset = config['training']['dataset']
-    beam_width = int(config['training']['beam_width'])
     
-
-    if "checkpoint_dir" in config['training']:
-        checkpoint_dir = config['training']['checkpoint_dir']
-        print(f"Using checkpoint directory: {checkpoint_dir}")
-    else:
-        raise ValueError("Checkpoint directory not found in config file")
-
+    batch_size = args.batch_size
+    learning_rate = args.learning_rate
+    embed_size = args.embed_size
+    num_layers = args.num_layers
+    model_arch = args.model_arch
+    dataset = args.dataset
+    checkpoint_dir = args.checkpoint_dir
+    
+    print(f"Using checkpoint directory: {checkpoint_dir}")
     model_config = {}
     model_config['model_arch'] = model_arch
     
-    if 'rnn_model' in config:
-        embed_size = model_config['rnn_embed_size'] = int(config['rnn_model']['embed_size'])
-        model_config['rnn_hidden_size'] = int(config['rnn_model']['hidden_size'])
+    if model_arch == 'rnn_model':
+        model_config['rnn_embed_size'] = embed_size
+        model_config['rnn_hidden_size'] = 512
 
-    if 'attn_model' in config:
-        embed_size = model_config['attn_embed_size'] = int(config['attn_model']['embed_size'])
-        num_layers = model_config['attn_num_layers'] = int(config['attn_model']['num_layers'])
-        model_config['attn_num_heads'] = int(config['attn_model']['num_heads'])
+    if  model_arch == 'attn_model':
+        model_config['attn_embed_size'] = embed_size
+        model_config['attn_num_layers'] = num_layers
+        model_config['attn_num_heads'] = 4
 
-    if 'vitcnn_attn_model' in config:
-        embed_size = model_config['vitcnn_embed_size'] = int(config['vitcnn_attn_model']['embed_size'])
-        num_layers = model_config['vitcnn_num_layers'] = int(config['vitcnn_attn_model']['num_layers'])
-        model_config['vitcnn_num_heads'] = int(config['vitcnn_attn_model']['num_heads'])
+    if model_arch == 'vitcnn_attn_model':
+        model_config['vitcnn_embed_size'] = embed_size
+        model_config['vitcnn_num_layers'] = num_layers
+        model_config['vitcnn_num_heads'] = 4
     
     if model_arch == "rnn_model":
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}"
@@ -261,15 +248,15 @@ if __name__ == "__main__":
     print(f"Evaluating model {model_arch}, {saved_name}, dataset {dataset}")
     
     eval(
-        num_workers,
-        batch_size,
-        val_ratio,
-        test_ratio,
-        model_arch,
-        mode,
-        dataset,
-        beam_width,
-        checkpoint_dir,
-        model_config,
-        saved_name,
+        num_workers=2,
+        batch_size=batch_size,
+        val_ratio=0.1,
+        test_ratio=0.05,
+        model_arch=model_arch,
+        mode="precomputed",
+        dataset=dataset,
+        beam_width=3,
+        checkpoint_dir=checkpoint_dir,
+        model_config=model_config,
+        saved_name=saved_name,
     )
