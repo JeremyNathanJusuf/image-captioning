@@ -34,7 +34,8 @@ def precompute_images(
     model_arch,
     dataset,
     train_loader,
-    val_loader
+    val_loader,
+    test_loader
 ):
     print("Precomputing images...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -70,8 +71,25 @@ def precompute_images(
                 print(filepath, os.path.exists(filepath))
                 with open(filepath, 'wb') as f:
                     pickle.dump(outputs[i].cpu(), f)
+                    
+        for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
+            enumerate(test_loader), total=len(test_loader), leave=False
+        ):
+            imgs = imgs.to(device)
+            outputs = model.precompute_image(imgs)
+            
+            if not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
+                os.makedirs(f'precomputed/{model_arch}/{dataset}')
+                
+            for i in range(len(img_ids)):
+                filepath = f'precomputed/{model_arch}/{dataset}/{img_ids[i].split(".")[0]}.pkl'
+                print(filepath, os.path.exists(filepath))
+                with open(filepath, 'wb') as f:
+                    pickle.dump(outputs[i].cpu(), f)
+                    
 
 def get_model(model_config, vocab_size, device):
+    model_arch = model_config['model_arch']
     if model_arch == "cnn-rnn":
         rnn_embed_size = model_config['rnn_embed_size']
         rnn_hidden_size = model_config['rnn_hidden_size']
@@ -110,6 +128,10 @@ def train(
     save_every,
     eval_every
 ):
+    
+    if os.path.exists(f'./checkpoints/{model_arch}/{dataset}/{saved_name}'):
+        exit(f"Model {model_arch}, {saved_name}, dataset {dataset} already trained")
+        
     train_loader, val_loader, _, train_dataset, _, _ = get_loader(
         transform=transform,
         num_workers=num_workers,
@@ -132,7 +154,7 @@ def train(
     print("Model initialized")
     
     if mode == 'precomputed' and not os.path.exists(f'precomputed/{model_arch}/{dataset}'):
-        image_train_loader, image_val_loader, _, _, _, _ = get_loader(
+        image_train_loader, image_val_loader, image_test_loader, _, _, _ = get_loader(
             transform=transform,
             num_workers=num_workers,
             batch_size=batch_size,
@@ -148,11 +170,11 @@ def train(
             model_arch,
             dataset,
             image_train_loader,
-            image_val_loader
+            image_val_loader,
+            image_test_loader
         )
-
         # remove datasets
-        del image_train_loader, image_val_loader
+        del image_train_loader, image_val_loader, image_test_loader
 
     # Initialize SummaryWriter only on the main process
     if accelerator.is_main_process:
@@ -386,6 +408,7 @@ if __name__ == "__main__":
         checkpoint_dir = "./<insert_your_checkpoint>.pth.tar"
 
     model_config = {}
+    model_config['model_arch'] = model_arch
     
     if 'rnn_model' in config:
         model_config['rnn_embed_size'] = embed_size

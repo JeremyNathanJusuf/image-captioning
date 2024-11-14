@@ -15,9 +15,18 @@ def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
 
 
 def load_checkpoint(checkpoint, model, optimizer):
-    print("=> Loading checkpoint")
-    model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
+    step = load_model(checkpoint, model)
+    load_optimizer(checkpoint, optimizer)
+    return step
+
+def load_model(checkpoint, model):
+    state_dict = checkpoint["state_dict"]
+    # Filter out unexpected keys
+    filtered_state_dict = {k: v for k, v in state_dict.items() if k in model.state_dict()}
+    model.load_state_dict(filtered_state_dict)
     step = checkpoint["step"]
     return step
 
+def load_optimizer(checkpoint, optimizer):
+    print("=> Loading optimizer checkpoint")
+    optimizer.load_state_dict(checkpoint["optimizer"])
