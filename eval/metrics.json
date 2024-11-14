@@ -1,13 +1,93 @@
 {
+    "cnn-rnn": {
+        "flickr": {
+            "bs64_lr0.001_es512_nl-1": {
+                "val_greedy_bleus": 0.16737468077080672,
+                "val_greedy_meteors": 0.3579262281817962,
+                "val_greedy_ciders": 0.33978927386592717,
+                "val_beam_bleus": 0.1881468446378686,
+                "val_beam_meteors": 0.36439663974467973,
+                "val_beam_ciders": 0.3800623647904576
+            },
+            "bs128_lr0.0005_es256_nl-1": {
+                "val_greedy_bleus": 0.18570019966238274,
+                "val_greedy_meteors": 0.36122056370775685,
+                "val_greedy_ciders": 0.3438733952475366,
+                "val_beam_bleus": 0.1972849982785554,
+                "val_beam_meteors": 0.3651065594156427,
+                "val_beam_ciders": 0.366984179142921
+            }
+        }
+    },
+    "cnn-attn": {
+        "flickr": {
+            "bs64_lr0.001_es512_nl4": {
+                "val_greedy_bleus": 0.16281461996315635,
+                "val_greedy_meteors": 0.35539577309200526,
+                "val_greedy_ciders": 0.35918495863395633,
+                "val_beam_bleus": 0.19558178968189002,
+                "val_beam_meteors": 0.3700121532720526,
+                "val_beam_ciders": 0.3949866027991139
+            },
+            "bs64_lr0.001_es512_nl1": {
+                "val_greedy_bleus": 0.1883465914499484,
+                "val_greedy_meteors": 0.370090392515303,
+                "val_greedy_ciders": 0.3900292669092718,
+                "val_beam_bleus": 0.2083113300863527,
+                "val_beam_meteors": 0.3686053959428534,
+                "val_beam_ciders": 0.41088484483265864
+            }
+        }
+    },
     "vitcnn-attn": {
         "flickr": {
+            "bs64_lr0.001_es512_nl4": {
+                "val_greedy_bleus": 0.0,
+                "val_greedy_meteors": 0.08126380879851174,
+                "val_greedy_ciders": 4.942161248138892e-06,
+                "val_beam_bleus": 0.0,
+                "val_beam_meteors": 0.07600437251580425,
+                "val_beam_ciders": 7.771789287264442e-07
+            },
+            "bs128_lr0.0005_es256_nl1": {
+                "val_greedy_bleus": 0.1964066749487788,
+                "val_greedy_meteors": 0.3771928136687355,
+                "val_greedy_ciders": 0.4161227137255912,
+                "val_beam_bleus": 0.21758505673159934,
+                "val_beam_meteors": 0.3812810971459403,
+                "val_beam_ciders": 0.4430763579147003
+            },
+            "bs64_lr0.0005_es256_nl1": {
+                "val_greedy_bleus": 0.1975438215334636,
+                "val_greedy_meteors": 0.3734186130996099,
+                "val_greedy_ciders": 0.4134537017993921,
+                "val_beam_bleus": 0.21814709942158614,
+                "val_beam_meteors": 0.3826584100507603,
+                "val_beam_ciders": 0.4464155747026222
+            }
+        }
+    },
+    "vit-attn": {
+        "flickr": {
             "bs64_lr0.0005_es512_nl2": {
-                "val_greedy_bleus": 0.18029374856221772,
-                "val_greedy_meteors": 0.37687139690711563,
-                "val_greedy_ciders": 0.4022600355130987,
-                "val_beam_bleus": 0.20494196327140754,
-                "val_beam_meteors": 0.37843621650614084,
-                "val_beam_ciders": 0.4423923117543948
+                "val_greedy_bleus": 0.18463432349901918,
+                "val_greedy_meteors": 0.37466392182429226,
+                "val_greedy_ciders": 0.4074018710153732,
+                "val_beam_bleus": 0.20721524853865103,
+                "val_beam_meteors": 0.3746176420302721,
+                "val_beam_ciders": 0.43134436767604606
+            }
+        }
+    },
+    "yolo-attn": {
+        "flickr": {
+            "bs64_lr0.0005_es256_nl2": {
+                "val_greedy_bleus": 0.11695046710699086,
+                "val_greedy_meteors": 0.27345541857317995,
+                "val_greedy_ciders": 0.10648062164949121,
+                "val_beam_bleus": 0.1181437578838854,
+                "val_beam_meteors": 0.2742385404879147,
+                "val_beam_ciders": 0.1186794883000228
             }
         }
     }
