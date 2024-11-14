@@ -82,7 +82,10 @@ def eval(
     all_pred_tokens_greedy = []
     all_pred_tokens_beam = []
     all_caption_tokens = []
-
+    
+    all_greedy_img_ids = []
+    all_beam_img_ids = []
+    
     with torch.no_grad():
         for idx, (img_ids, imgs, captions, ref_captions) in tqdm(
             enumerate(test_loader), total=len(test_loader), leave=False
@@ -93,6 +96,8 @@ def eval(
             print(f"Predicted (greedy): {generated_captions_greedy[0]}")
             print(f"Target: {ref_captions[0]}")
             
+            img_ids = img_ids.cpu().numpy().tolist()
+            all_greedy_img_ids.extend(img_ids)
             all_pred_tokens_greedy.extend(generated_captions_greedy)
             all_caption_tokens.extend(ref_captions)
 
@@ -126,6 +131,8 @@ def eval(
             print(f"Predicted (beam): {generated_captions_beam[0]}")
             print(f"Target: {ref_captions[0]}")
             
+            img_ids = img_ids.cpu().numpy().tolist()
+            all_beam_img_ids.extend(img_ids)
             all_pred_tokens_beam.extend(generated_captions_beam)
             all_caption_tokens.extend(ref_captions)
 
@@ -156,22 +163,47 @@ def eval(
         'val_beam_meteors': test_meteor_score_beam,
         'val_beam_ciders': test_cider_score_beam
     }
+    
+    # Save captions
+    model_captions = {}
+    for i in range(len(all_greedy_img_ids)):
+        model_captions[all_greedy_img_ids[i]] = {
+            'greedy': all_pred_tokens_greedy[i]
+        }
+    for i in range(len(all_beam_img_ids)):
+        model_captions[all_beam_img_ids[i]]['beam'] = all_pred_tokens_beam[i]
+    
+    # save captions to a JSON file
+    captions_file_path = f'./eval/captions.json'
+    os.makedirs(os.path.dirname(captions_file_path), exist_ok=True)
+    
+    with open(captions_file_path, 'r') as json_file:
+        all_captions = json.load(json_file)
+    
+    if model_arch not in eval_data:
+        all_captions[model_arch] = {}
+    if dataset not in eval_data[model_arch]:
+        all_captions[model_arch][dataset] = {} 
+    
+    all_captions[model_arch][dataset][saved_name] = model_captions
+    
+    with open(captions_file_path, 'w') as json_file:
+        json.dump(all_captions, json_file, indent=4)
+        
+    print(f"Captions successfully saved to {captions_file_path}")
+    
     # Save metrics to a JSON file
-    if not os.path.exists(f'./eval'):
-        os.makedirs(f'./eval')
     eval_file_path = f'./eval/metrics.json'    
     os.makedirs(os.path.dirname(eval_file_path), exist_ok=True)
-    if not os.path.exists(eval_file_path):
-        eval_data = {}
-    else: 
-        with open(eval_file_path, 'r') as json_file:
-            eval_data = json.load(metrics, json_file, indent=4)
+    
+    with open(eval_file_path, 'r') as json_file:
+        eval_data = json.load(metrics, json_file, indent=4)
     
     if model_arch not in eval_data:
         eval_data[model_arch] = {}
     if dataset not in eval_data[model_arch]:
         eval_data[model_arch][dataset] = {}
-        
+    
     eval_data[model_arch][dataset][saved_name] = metrics
     
     with open(eval_file_path, 'w') as json_file:
@@ -227,7 +259,7 @@ if __name__ == "__main__":
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}_nl{num_layers}"
 
     print(f"Evaluating model {model_arch}, {saved_name}, dataset {dataset}")
-
+    
     eval(
         num_workers,
         batch_size,
