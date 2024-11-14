@@ -20,6 +20,7 @@ from models.cnnattn_model import CNNAttentionModel
 from models.vitcnnattn_model import VITCNNAttentionModel
 from models.vitattn_model import VITAttentionModel
 from models.yoloattn_model import YOLOAttentionModel
+from models.yolocnnattn_model import YOLOCNNAttentionModel
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -117,6 +118,12 @@ def get_model(model_config, vocab_size, device):
         yolo_num_layers = model_config['yolo_num_layers']
         yolo_num_heads = model_config['yolo_num_heads']
         return YOLOAttentionModel(yolo_embed_size, vocab_size, yolo_num_heads, yolo_num_layers).to(device)
+    
+    elif model_arch == "yolocnn-attn":
+        yolocnn_embed_size = model_config['yolocnn_embed_size']
+        yolocnn_num_layers = model_config['yolocnn_num_layers']
+        yolocnn_num_heads = model_config['yolocnn_num_heads']
+        return YOLOCNNAttentionModel(yolocnn_embed_size, vocab_size, yolocnn_num_heads, yolocnn_num_layers).to(device)
     
     else:
         raise ValueError("Model not recognized")
@@ -447,7 +454,12 @@ if __name__ == "__main__":
         model_config['yolo_embed_size'] = embed_size
         model_config['yolo_num_layers'] = num_layers
         model_config['yolo_num_heads'] = int(config['yolo_attn_model']['num_heads'])
-        
+    
+    if 'yolocnn_attn_model' in config:
+        model_config['yolocnn_embed_size'] = embed_size
+        model_config['yolocnn_num_layers'] = num_layers
+        model_config['yolocnn_num_heads'] = int(config['yolocnn_attn_model']['num_heads'])
+    
     if num_layers == -1:
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}"
     else:

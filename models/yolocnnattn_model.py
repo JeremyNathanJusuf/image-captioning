@@ -4,14 +4,16 @@ import torch.nn.functional as F
 import math
 from ultralytics import YOLO
 from torchvision import transforms
-    
-class YOLOModel():
+from models.modules.encoder_cnn import EncoderCNN
+
+class YOLOCNNModel():
     def __init__(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.yolo_model = YOLO("yolov8n.pt")
         self.yolo_layers = torch.nn.modules.container.Sequential = self.yolo_model.model.__dict__["_modules"]["model"].to(device)
         self.softmax = nn.Softmax(dim=1)
+        self.cnn = EncoderCNN()
         
     def forward(self, images):
         
@@ -37,12 +39,14 @@ class YOLOModel():
         hook.remove()
 
         raw_predictions = detect_output["preds"][0]
-        print("Raw predictions: ", raw_predictions.size())
         argmax_predictions = self.softmax(raw_predictions[:, 5:]).argmax(dim=1)
         predictions = torch.cat((raw_predictions[:, :5], argmax_predictions.unsqueeze(1).float()), dim=1)
         
         predictions = raw_predictions.view(predictions.size(0), -1)
-        return predictions
+        
+        cnn_output = self.cnn(images)
+        return torch.cat((predictions, cnn_output), dim=1)
+    
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
@@ -129,16 +133,17 @@ class DecoderLayer(nn.Module):
         x = self.norm3(x + self.dropout(ff_output))
         return x
 
-class YOLOAttentionModel(nn.Module):
+class YOLOCNNAttentionModel(nn.Module):
     def __init__(self, embed_size, vocab_size, num_heads, num_layers, dropout=0.1, max_seq_length=50):
-        super(YOLOAttentionModel, self).__init__()
+        super(YOLOCNNAttentionModel, self).__init__()
 
         self.yolo_output_size = 84 * 1029
-        self.yolo = YOLOModel()
+        self.yolocnn = YOLOCNNModel()
         self.fc_yolo = nn.Linear(self.yolo_output_size, embed_size)
+        self.fc_cnn = nn.Linear(2048, embed_size)
         self.dropout = nn.Dropout(dropout)
-        self.batchnorm = nn.BatchNorm1d(embed_size)
-
+        self.batchnorm = nn.BatchNorm1d(2*embed_size)
+        
         self.decoder_layers = nn.ModuleList([DecoderLayer(embed_size, num_heads, embed_size, dropout) for _ in range(num_layers)])
         self.positional_encoding = PositionalEncoding(embed_size, max_seq_length)
         self.fc2 = nn.Linear(embed_size, vocab_size)
@@ -156,7 +161,7 @@ class YOLOAttentionModel(nn.Module):
     
     def precompute_image(self, images):
         with torch.no_grad():
-            enc_output = self.yolo.forward(images)
+            enc_output = self.yolocnn.forward(images)
         return enc_output
     
     def forward(self, images, captions, mode):
@@ -164,9 +169,11 @@ class YOLOAttentionModel(nn.Module):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo.forward(images) # shape: (batch_size, 8*64*64 + 2048)
+                enc_output = self.yolocnn.forward(images) # shape: (batch_size, 8*64*64 + 2048)
 
-        enc_output = self.fc_yolo(enc_output)
+        yolo_output = self.fc_yolo(enc_output[:, :self.yolo_output_size])
+        cnn_output = self.fc_cnn(enc_output[:, self.yolo_output_size:])
+        enc_output = torch.cat((yolo_output, cnn_output), dim=1)
         enc_output = self.dropout(enc_output)
         enc_output = self.batchnorm(enc_output)
         enc_output = enc_output.unsqueeze(1)
@@ -190,13 +197,15 @@ class YOLOAttentionModel(nn.Module):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo.forward(images)
+                enc_output = self.vit.forward(images)
                 
-            enc_output = self.fc_yolo(enc_output)
+            yolo_output = self.fc_yolo(enc_output[:, :self.yolo_output_size])
+            cnn_output = self.fc_cnn(enc_output[:, self.yolo_output_size:])
+            enc_output = torch.cat((yolo_output, cnn_output), dim=1)
             enc_output = self.dropout(enc_output)
             enc_output = self.batchnorm(enc_output)
             enc_output = enc_output.unsqueeze(1)
-
+            
             # Initialize the caption with the <SOS> token
             batch_size = images.size(0)
             caption = torch.full((batch_size, 1), vocabulary.stoi["<SOS>"], device=images.device)
@@ -254,13 +263,14 @@ class YOLOAttentionModel(nn.Module):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo.forward(images)
+                enc_output = self.vit.forward(images)
 
-            enc_output = self.fc_yolo(enc_output)
+            yolo_output = self.fc_yolo(enc_output[:, :self.yolo_output_size])
+            cnn_output = self.fc_cnn(enc_output[:, self.yolo_output_size:])
+            enc_output = torch.cat((yolo_output, cnn_output), dim=1)
             enc_output = self.dropout(enc_output)
             enc_output = self.batchnorm(enc_output)
             enc_output = enc_output.unsqueeze(1)
-
             enc_output = enc_output.expand(-1, beam_width, -1)  # Shape: (batch_size, beam_width, feature_dim)
             enc_output = enc_output.reshape(batch_size * beam_width, -1, enc_output.size(-1))  # Shape: (batch_size*beam_width, seq_len, feature_dim)
 
