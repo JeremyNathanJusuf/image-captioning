@@ -24,7 +24,7 @@ from models.yolocnnattn_model import YOLOCNNAttentionModel
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_file", type=str, required=True)
+    parser.add_argument("--config_file", type=str)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--embed_size", type=int, default=256)
@@ -100,16 +100,19 @@ def get_model(model_config, vocab_size, device):
         rnn_embed_size = model_config['rnn_embed_size']
         rnn_hidden_size = model_config['rnn_hidden_size']
         return CNNtoRNN(rnn_embed_size, rnn_hidden_size, vocab_size).to(device)
+    
     elif model_arch == "cnn-attn":
         attn_embed_size = model_config['attn_embed_size']
         attn_num_layers = model_config['attn_num_layers']
         attn_num_heads = model_config['attn_num_heads']
         return CNNAttentionModel(attn_embed_size, vocab_size, attn_num_heads, attn_num_layers).to(device)
+    
     elif model_arch == "vitcnn-attn":
         vitcnn_embed_size = model_config['vitcnn_embed_size']
         vitcnn_num_layers = model_config['vitcnn_num_layers']
         vitcnn_num_heads = model_config['vitcnn_num_heads']
         return VITCNNAttentionModel(vitcnn_embed_size, vocab_size, vitcnn_num_heads, vitcnn_num_layers).to(device)
+    
     elif model_arch == "vit-attn":
         vit_embed_size = model_config['vit_embed_size']
         vit_num_layers = model_config['vit_num_layers']

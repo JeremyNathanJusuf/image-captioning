@@ -162,7 +162,9 @@ class CNNtoRNN(nn.Module):
                 mask = mask.expand(-1, -1, beam_width)
                 mask[:, :, 0] = False # keep the best score
                 if i == 0:
-                    mask[:, 1:, :] = True # when i = 0, only keep the first beam
+                    bool_mask = torch.zeros_like(mask, dtype=torch.bool)
+                    bool_mask[:, 1:, :] = True
+                    mask = mask | bool_mask
                 new_scores = new_scores.masked_fill(mask, float("-inf"))
                 new_scores = new_scores.reshape(batch_size, -1)  # Shape: (batch_size, beam_width*beam_width)
 

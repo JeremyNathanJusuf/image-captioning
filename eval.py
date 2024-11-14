@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 import torch
 import yaml
 from tqdm import tqdm
@@ -69,7 +70,7 @@ def eval(
         # remove datasets
         del image_train_loader, image_val_loader, image_test_loader
 
-    load_model(torch.load(checkpoint_dir, weights_only=True), model)
+    load_model(torch.load(checkpoint_dir, weights_only=True, map_location=device), model)
 
     bleu = NLGMetricverse(metrics=load_metric("bleu"))
     meteor = NLGMetricverse(metrics=load_metric("meteor"))
@@ -96,7 +97,6 @@ def eval(
             print(f"Predicted (greedy): {generated_captions_greedy[0]}")
             print(f"Target: {ref_captions[0]}")
             
-            img_ids = img_ids.cpu().numpy().tolist()
             all_greedy_img_ids.extend(img_ids)
             all_pred_tokens_greedy.extend(generated_captions_greedy)
             all_caption_tokens.extend(ref_captions)
@@ -131,7 +131,6 @@ def eval(
             print(f"Predicted (beam): {generated_captions_beam[0]}")
             print(f"Target: {ref_captions[0]}")
             
-            img_ids = img_ids.cpu().numpy().tolist()
             all_beam_img_ids.extend(img_ids)
             all_pred_tokens_beam.extend(generated_captions_beam)
             all_caption_tokens.extend(ref_captions)
@@ -174,15 +173,18 @@ def eval(
         model_captions[all_beam_img_ids[i]]['beam'] = all_pred_tokens_beam[i]
     
     # save captions to a JSON file
-    captions_file_path = f'./eval/captions.json'
-    os.makedirs(os.path.dirname(captions_file_path), exist_ok=True)
+    captions_file_path = Path('./eval/captions.json')
+    captions_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Initialize the JSON file if it does not exist
+    if not captions_file_path.exists():
+        captions_file_path.write_text('{}')
     
-    with open(captions_file_path, 'r') as json_file:
-        all_captions = json.load(json_file)
+    all_captions = json.loads(captions_file_path.read_text())
     
-    if model_arch not in eval_data:
+    if model_arch not in all_captions:
         all_captions[model_arch] = {}
-    if dataset not in eval_data[model_arch]:
+    if dataset not in all_captions[model_arch]:
         all_captions[model_arch][dataset] = {} 
     
     all_captions[model_arch][dataset][saved_name] = model_captions
@@ -193,11 +195,14 @@ def eval(
     print(f"Captions successfully saved to {captions_file_path}")
     
     # Save metrics to a JSON file
-    eval_file_path = f'./eval/metrics.json'    
-    os.makedirs(os.path.dirname(eval_file_path), exist_ok=True)
+    eval_file_path = Path('./eval/metrics.json')
+    eval_file_path.parent.mkdir(parents=True, exist_ok=True)
     
-    with open(eval_file_path, 'r') as json_file:
-        eval_data = json.load(metrics, json_file, indent=4)
+    # Initialize the JSON file if it does not exist
+    if not eval_file_path.exists():
+        eval_file_path.write_text('{}')
+        
+    eval_data = json.loads(eval_file_path.read_text())
     
     if model_arch not in eval_data:
         eval_data[model_arch] = {}
@@ -226,19 +231,34 @@ if __name__ == "__main__":
     model_config = {}
     model_config['model_arch'] = model_arch
     
-    if model_arch == 'rnn_model':
+    if model_arch == 'cnn-rnn':
         model_config['rnn_embed_size'] = embed_size
         model_config['rnn_hidden_size'] = 512
 
-    if  model_arch == 'attn_model':
+    if  model_arch == 'cnn-attn':
         model_config['attn_embed_size'] = embed_size
         model_config['attn_num_layers'] = num_layers
         model_config['attn_num_heads'] = 4
 
-    if model_arch == 'vitcnn_attn_model':
+    if model_arch == 'vitcnn-attn':
         model_config['vitcnn_embed_size'] = embed_size
         model_config['vitcnn_num_layers'] = num_layers
         model_config['vitcnn_num_heads'] = 4
+        
+    if model_arch == 'vit-attn':
+        model_config['vit_embed_size'] = embed_size
+        model_config['vit_num_layers'] = num_layers
+        model_config['vit_num_heads'] = 4
+        
+    if model_arch == 'yolo-attn':
+        model_config['yolo_embed_size'] = embed_size
+        model_config['yolo_num_layers'] = num_layers
+        model_config['yolo_num_heads'] = 4
+    
+    if model_arch == 'yolocnn-attn':
+        model_config['yolocnn_embed_size'] = embed_size
+        model_config['yolocnn_num_layers'] = num_layers
+        model_config['yolocnn_num_heads'] = 4
     
     if model_arch == "rnn_model":
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}"
@@ -247,13 +267,14 @@ if __name__ == "__main__":
 
     print(f"Evaluating model {model_arch}, {saved_name}, dataset {dataset}")
     
+    print("model_config: ", model_config)
     eval(
         num_workers=2,
         batch_size=batch_size,
         val_ratio=0.1,
         test_ratio=0.05,
         model_arch=model_arch,
-        mode="precomputed",
+        mode="image",
         dataset=dataset,
         beam_width=3,
         checkpoint_dir=checkpoint_dir,
