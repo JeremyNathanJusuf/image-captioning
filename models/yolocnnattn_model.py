@@ -89,7 +89,7 @@ class YOLOCNNAttentionModel(DecoderTransformer):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.vit.forward(images)
+                enc_output = self.yolocnn.forward(images)
                 
             yolo_output = self.fc_yolo(enc_output[:, :self.yolo_output_size])
             cnn_output = self.fc_cnn(enc_output[:, self.yolo_output_size:])
@@ -111,7 +111,7 @@ class YOLOCNNAttentionModel(DecoderTransformer):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.vit.forward(images)
+                enc_output = self.yolocnn.forward(images)
 
             yolo_output = self.fc_yolo(enc_output[:, :self.yolo_output_size])
             cnn_output = self.fc_cnn(enc_output[:, self.yolo_output_size:])
