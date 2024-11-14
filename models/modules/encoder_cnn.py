@@ -5,9 +5,10 @@ from torchvision.models.inception import Inception3
 
 class EncoderCNN(nn.Module):
     def __init__(self):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         super(EncoderCNN, self).__init__()
         # Initialize the InceptionV3 model with pretrained weights
-        self.inception = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT)
+        self.inception = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT).to(device)
         
         # Dictionary to store activation from the desired layer
         self.activation = {}
