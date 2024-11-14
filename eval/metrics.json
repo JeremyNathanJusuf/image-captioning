@@ -1,0 +1,14 @@
+{
+    "vitcnn-attn": {
+        "flickr": {
+            "bs64_lr0.0005_es512_nl2": {
+                "val_greedy_bleus": 0.18029374856221772,
+                "val_greedy_meteors": 0.37687139690711563,
+                "val_greedy_ciders": 0.4022600355130987,
+                "val_beam_bleus": 0.20494196327140754,
+                "val_beam_meteors": 0.37843621650614084,
+                "val_beam_ciders": 0.4423923117543948
+            }
+        }
+    }
+}

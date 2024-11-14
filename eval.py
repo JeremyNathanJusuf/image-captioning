@@ -161,8 +161,11 @@ def eval(
         os.makedirs(f'./eval')
     eval_file_path = f'./eval/metrics.json'    
     os.makedirs(os.path.dirname(eval_file_path), exist_ok=True)
-    with open(eval_file_path, 'r') as json_file:
-        eval_data = json.load(metrics, json_file, indent=4)
+    if not os.path.exists(eval_file_path):
+        eval_data = {}
+    else: 
+        with open(eval_file_path, 'r') as json_file:
+            eval_data = json.load(metrics, json_file, indent=4)
     
     if model_arch not in eval_data:
         eval_data[model_arch] = {}
@@ -170,6 +173,9 @@ def eval(
         eval_data[model_arch][dataset] = {}
         
     eval_data[model_arch][dataset][saved_name] = metrics
+    
+    with open(eval_file_path, 'w') as json_file:
+        json.dump(eval_data, json_file, indent=4)
 
     print(f"Metrics successfully saved to {eval_file_path}")
        

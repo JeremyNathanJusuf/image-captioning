@@ -1,0 +1,31 @@
+training:
+
+  # learning settings
+  learning_rate: 0.0005
+  step_size: 5
+  gamma: 0.8
+  num_epochs: 50
+  eval_every: 5
+
+  # dataset settings
+  num_workers: 2
+  batch_size: 64
+  val_ratio: 0.1
+  test_ratio: 0.05
+  
+  # model settings
+  model_arch: 'yolo-attn' # 'cnn-rnn' or 'cnn-attn' or 'vitcnn-attn' or 'vit-attn' or 'yolo-attn'
+  dataset: 'flickr' # 'mscoco' or 'flickr'
+  mode: 'precomputed' # 'precomputed' or 'image'
+  beam_width: 3
+
+  # save and load checkpoints
+  save_model: true
+  load_model: false
+  save_every: 50
+
+# specify the model hyperparameters
+yolo_attn_model:
+  embed_size: 512
+  num_layers: 2
+  num_heads: 4

@@ -223,6 +223,11 @@ def get_loader(
             train_val_img_captions, test_size=val_ratio, random_state=seed
         )
         
+        #print train, val, test, size
+        print("Train size: ", len(train_img_captions))
+        print("Val size: ", len(val_img_captions))
+        print("Test size: ", len(test_img_captions))
+        
         train_dataset = ImageCaptionDataset(root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         val_dataset = ImageCaptionDataset(root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         test_dataset = ImageCaptionDataset(root_folder, test_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
@@ -257,6 +262,10 @@ def get_loader(
         val_img_captions, test_img_captions = train_test_split(
             val_test_img_captions, test_size=val_ratio, random_state=seed
         )
+        #print train, val, test, size
+        print("Train size: ", len(train_img_captions))
+        print("Val size: ", len(val_img_captions))
+        print("Test size: ", len(test_img_captions))
         
         train_dataset = ImageCaptionDataset(train_root_folder, train_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
         val_dataset = ImageCaptionDataset(val_test_root_folder, val_img_captions, mode=mode, precomputed_dir=precomputed_dir, dataset=dataset, model_arch=model_arch, transform=transform)
@@ -265,7 +274,7 @@ def get_loader(
     else:
         raise ValueError("Invalid dataset. Choose either 'mscoco' or 'flickr'")
 
-
+    
     pad_idx = train_dataset.vocab.stoi["<PAD>"]
 
     train_loader = DataLoader(
@@ -294,4 +303,7 @@ def get_loader(
         pin_memory=pin_memory,
         collate_fn=MyCollate(pad_idx=pad_idx, mode=mode),
     )
+    
     return train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset
+
+    

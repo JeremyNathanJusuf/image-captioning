@@ -18,7 +18,8 @@ from nlgmetricverse import NLGMetricverse, load_metric
 from models.cnnrnn_model import CNNtoRNN
 from models.cnnattn_model import CNNAttentionModel
 from models.vitcnnattn_model import VITCNNAttentionModel
-
+from models.vitattn_model import VITAttentionModel
+from models.yoloattn_model import YOLOAttentionModel
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -90,6 +91,7 @@ def precompute_images(
 
 def get_model(model_config, vocab_size, device):
     model_arch = model_config['model_arch']
+    
     if model_arch == "cnn-rnn":
         rnn_embed_size = model_config['rnn_embed_size']
         rnn_hidden_size = model_config['rnn_hidden_size']
@@ -104,6 +106,18 @@ def get_model(model_config, vocab_size, device):
         vitcnn_num_layers = model_config['vitcnn_num_layers']
         vitcnn_num_heads = model_config['vitcnn_num_heads']
         return VITCNNAttentionModel(vitcnn_embed_size, vocab_size, vitcnn_num_heads, vitcnn_num_layers).to(device)
+    elif model_arch == "vit-attn":
+        vit_embed_size = model_config['vit_embed_size']
+        vit_num_layers = model_config['vit_num_layers']
+        vit_num_heads = model_config['vit_num_heads']
+        return VITAttentionModel(vit_embed_size, vocab_size, vit_num_heads, vit_num_layers).to(device)
+    
+    elif model_arch == "yolo-attn":
+        yolo_embed_size = model_config['yolo_embed_size']
+        yolo_num_layers = model_config['yolo_num_layers']
+        yolo_num_heads = model_config['yolo_num_heads']
+        return YOLOAttentionModel(yolo_embed_size, vocab_size, yolo_num_heads, yolo_num_layers).to(device)
+    
     else:
         raise ValueError("Model not recognized")
 
@@ -142,7 +156,7 @@ def train(
         val_ratio=val_ratio,
         test_ratio=test_ratio
     )
-    
+
     vocab_size = len(train_dataset.vocab)
     print("Vocabulary size:", vocab_size)
 
@@ -424,6 +438,16 @@ if __name__ == "__main__":
         model_config['vitcnn_num_layers'] = num_layers
         model_config['vitcnn_num_heads'] = int(config['vitcnn_attn_model']['num_heads'])
     
+    if 'vit_attn_model' in config:
+        model_config['vit_embed_size'] = embed_size
+        model_config['vit_num_layers'] = num_layers
+        model_config['vit_num_heads'] = int(config['vit_attn_model']['num_heads'])
+    
+    if 'yolo_attn_model' in config:
+        model_config['yolo_embed_size'] = embed_size
+        model_config['yolo_num_layers'] = num_layers
+        model_config['yolo_num_heads'] = int(config['yolo_attn_model']['num_heads'])
+        
     if num_layers == -1:
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}"
     else:
