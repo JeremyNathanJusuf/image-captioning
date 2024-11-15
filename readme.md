@@ -3,6 +3,8 @@
 ## About
 This project aims to create an automated image captioning system that generates natural language descriptions for input images by integrating techniques from computer vision and natural language processing. We employ various techniques ranging from CNN-RNN to more advanced transformer-based methods. Training is conducted on datasets of images paired with descriptive captions, and model performance is evaluated using established metrics such as BLEU, METEOR, and CIDEr. The project also involves experimentation with advanced attention mechanisms, comparisons of different architectural choices, and hyperparameter optimization to refine captioning accuracy and overall system effectiveness.
 
+You can access the report [here](./Image_Captioning_Report.pdf).
+
 ## Models
 We architected five different models, experimenting with different model blocks such as ViT, InceptionV3, and YOLO for the image encoder, and LSTM and Transformer Decoder for the decoder:
 - CNN-RNN
@@ -10,6 +12,9 @@ We architected five different models, experimenting with different model blocks 
 - ViT-Attn
 - ViTCNN-Attn
 - YOLOCNN-Attn
+
+## Sample Captions Generated
+
 
 ## Environment
 ```bash
@@ -34,7 +39,8 @@ Training is done with the training and validation split.
 
 For training with the config script, create a config YAML file inside the config folder and run the `train.py` file. You can refer to the `sample_train_command.sh` for more examples.
 ```bash
-python train.py --config_file config-mscoco-cnnrnn.yaml --embed_size 512 --batch_size 64 --learning_rate 0.001
+python train.py --config_file config-mscoco-cnnrnn.yaml ---embed_size={embed_size} \
+                --batch_size={batch_size} --learning_rate={learning_rate}
 ```
 
 For hyperparameter tuning, input the parameter search space in `grid_train_script` and run:
