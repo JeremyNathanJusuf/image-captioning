@@ -1,6 +1,6 @@
 flickr8k
 flickr30k
-mscoco
+dataset
 *__pycache__
 checkpoints
 precomputed
