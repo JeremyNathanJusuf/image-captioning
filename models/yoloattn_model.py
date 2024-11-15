@@ -65,7 +65,7 @@ class YOLOAttentionModel(DecoderTransformer):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo.forward(images) # shape: (batch_size, 8*64*64 + 2048)
+                enc_output = self.yolo.forward(images).clone() # shape: (batch_size, 8*64*64 + 2048)
 
         enc_output = self.fc_yolo(enc_output)
         enc_output = self.dropout(enc_output)
@@ -82,7 +82,7 @@ class YOLOAttentionModel(DecoderTransformer):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo.forward(images)
+                enc_output = self.yolo.forward(images).clone()
                 
             enc_output = self.fc_yolo(enc_output)
             enc_output = self.dropout(enc_output)
@@ -102,7 +102,7 @@ class YOLOAttentionModel(DecoderTransformer):
             if mode == "precomputed":
                 enc_output = images
             else:
-                enc_output = self.yolo.forward(images)
+                enc_output = self.yolo.forward(images).clone()
 
             enc_output = self.fc_yolo(enc_output)
             enc_output = self.dropout(enc_output)

@@ -9,6 +9,16 @@
                 "val_beam_meteors": 0.3825605785947047,
                 "val_beam_ciders": 0.4464418766484949
             }
+        },
+        "mscoco": {
+            "bs64_lr0.001_es256_nl1": {
+                "val_greedy_bleus": 0.2820131244709556,
+                "val_greedy_meteors": 0.46305347475821873,
+                "val_greedy_ciders": 0.9084478630684719,
+                "val_beam_bleus": 0.3123682641403013,
+                "val_beam_meteors": 0.46982308356772473,
+                "val_beam_ciders": 0.9530405277529421
+            }
         }
     },
     "cnn-rnn": {
@@ -20,6 +30,16 @@
                 "val_beam_bleus": 0.19625051988514086,
                 "val_beam_meteors": 0.3641637332185987,
                 "val_beam_ciders": 0.3655153855532389
+            }
+        },
+        "mscoco": {
+            "bs128_lr0.0005_es256": {
+                "val_greedy_bleus": 0.2590089740644813,
+                "val_greedy_meteors": 0.442516994291699,
+                "val_greedy_ciders": 0.8282953494199237,
+                "val_beam_bleus": 0.2808142048265534,
+                "val_beam_meteors": 0.44992479198528035,
+                "val_beam_ciders": 0.8581694893766154
             }
         }
     },
@@ -33,6 +53,16 @@
                 "val_beam_meteors": 0.3682815541979244,
                 "val_beam_ciders": 0.41162841529771915
             }
+        },
+        "mscoco": {
+            "bs64_lr0.0005_es512_nl1": {
+                "val_greedy_bleus": 0.26304513284757863,
+                "val_greedy_meteors": 0.44589905322235546,
+                "val_greedy_ciders": 0.8464926092500402,
+                "val_beam_bleus": 0.2862469113965201,
+                "val_beam_meteors": 0.4531982043875536,
+                "val_beam_ciders": 0.8803580823480106
+            }
         }
     },
     "vit-attn": {
@@ -45,6 +75,16 @@
                 "val_beam_meteors": 0.3741140976399085,
                 "val_beam_ciders": 0.43196502029649914
             }
+        },
+        "mscoco": {
+            "bs64_lr0.001_es512_nl2": {
+                "val_greedy_bleus": 0.2657603872444729,
+                "val_greedy_meteors": 0.45719708899552775,
+                "val_greedy_ciders": 0.8567557960522509,
+                "val_beam_bleus": 0.2869272242637709,
+                "val_beam_meteors": 0.4581468340387617,
+                "val_beam_ciders": 0.8878772620177136
+            }
         }
     },
     "yolocnn-attn": {
@@ -56,6 +96,16 @@
                 "val_beam_bleus": 0.18565640130086516,
                 "val_beam_meteors": 0.3537927736180101,
                 "val_beam_ciders": 0.3604992610929565
+            }
+        },
+        "mscoco": {
+            "bs128_lr0.001_es512_nl1": {
+                "val_greedy_bleus": 0.2533402291925083,
+                "val_greedy_meteors": 0.43803196086105856,
+                "val_greedy_ciders": 0.7947787424531632,
+                "val_beam_bleus": 0.27964985455902686,
+                "val_beam_meteors": 0.4461542650320494,
+                "val_beam_ciders": 0.8436948023386245
             }
         }
     },

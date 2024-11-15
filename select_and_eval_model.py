@@ -6,46 +6,51 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Define the models, datasets, and inference types to evaluate
-model_list = ["vitcnn-attn", "cnn-rnn", "cnn-attn",  "vit-attn", "yolo-attn", "yolocnn-attn"]
-# dataset_list = ["flickr", "mscoco"]
-dataset_list = ["flickr"]
+model_list = ["vitcnn-attn", "cnn-rnn", "cnn-attn",  "vit-attn", "yolocnn-attn"]
+dataset_list = ["mscoco"]
 inference_type_list = ["greedy", "beam"]
 num_epoch_eval = 50
 n = 10
 
 def create_metric_plots(best_model_metrics):
-    metric_name_list = ["bleus", "ciders", "meteors"]
+    metric_name_list = ["bleus", "ciders", "meteors", "train_losses"]
     for dataset in best_model_metrics:
         for metric_name in metric_name_list:
             f, ax = plt.subplots(1, 2, figsize=(15, 5))
+            f, ax2 = plt.subplots(1, 1, figsize=(10, 5))
             
             for model in best_model_metrics[dataset]:
                 metrics = best_model_metrics[dataset][model]
-                metrics = best_model_metrics[dataset][model]
-                
-                for i, inference_type in enumerate(inference_type_list):
-                    # Generate x-tick labels as multiples of 5, but use normal indexing for plotting
-                    x_indices = list(range(len(metrics[f"val_{inference_type}_{metric_name}"])))
-                    x_labels = [(i + 1) * 5 for i in x_indices]
-                
-                    ax[i].plot(x_indices, metrics[f"val_{inference_type}_{metric_name}"], label=model)
-                    ax[i].set_title(f"{inference_type} {metric_name.upper()} for {dataset}")
-                    ax[i].set_xlabel("Epoch")
-                    
-                    ax[i].legend()
-                    ax[i].set_xticks(x_indices)
-                    ax[i].set_xticklabels(x_labels)  
+
+                if metric_name == "train_losses":
+                    ax2.plot(metrics["train_losses"], label=model)
+                    ax2.set_title(f"Train Loss for {dataset}")
+                    ax2.set_xlabel("Epoch")
+                    ax2.legend()
+                else:
+                    for i, inference_type in enumerate(inference_type_list):
+                        # Generate x-tick labels as multiples of 5, but use normal indexing for plotting
+                        x_indices = list(range(len(metrics[f"val_{inference_type}_{metric_name}"])))
+                        x_labels = [(i + 1) * 5 for i in x_indices]
+
+                        ax[i].plot(x_indices, metrics[f"val_{inference_type}_{metric_name}"], label=model)
+                        ax[i].set_title(f"{inference_type} {metric_name.upper()} for {dataset}")
+                        ax[i].set_xlabel("Epoch")
+                        
+                        ax[i].legend()
+                        ax[i].set_xticks(x_indices)
+                        ax[i].set_xticklabels(x_labels)  
             
             # save the dataset plot
             Path(f"./eval/metric_plots/").mkdir(parents=True, exist_ok=True)
             plt.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
 
-def select_n_samples(n):
+def select_n_samples(n, model, dataset):
     with open("./eval/captions.json", 'r') as json_file:
         all_captions = json.load(json_file)
     
-    first_model = list(all_captions.keys())[0]
-    first_dataset = list(all_captions[first_model].keys())[0]
+    first_model = model
+    first_dataset = dataset
     first_trained_model = list(all_captions[first_model][first_dataset].keys())[0]
     img_ids = all_captions[first_model][first_dataset][first_trained_model].keys()
     
@@ -101,15 +106,15 @@ if __name__ == "__main__":
             if model != "cnn-rnn":
                 num_layers = best_model.split("_")[3][2:]
             
-            if model == "cnn-rnn":
-                cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
-                --model_arch={model} --dataset={dataset} \
-                --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
-            else:
-                cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
-                    --num_layers={num_layers} --model_arch={model} --dataset={dataset} \
-                    --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
-            subprocess.call(cmd, shell=True)
+            # if model == "cnn-rnn":
+            #     cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
+            #     --model_arch={model} --dataset={dataset} \
+            #     --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
+            # else:
+            #     cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
+            #         --num_layers={num_layers} --model_arch={model} --dataset={dataset} \
+            #         --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
+            # subprocess.call(cmd, shell=True)
                     
     create_metric_plots(best_model_metrics)
-    select_n_samples(n)
+    select_n_samples(n, model, dataset)
