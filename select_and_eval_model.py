@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Define the models, datasets, and inference types to evaluate
 model_list = ["vitcnn-attn", "cnn-rnn", "cnn-attn",  "vit-attn", "yolocnn-attn"]
-dataset_list = ["mscoco"]
+dataset_list = ["flickr", "mscoco"]
 inference_type_list = ["greedy", "beam"]
 num_epoch_eval = 50
 n = 10
@@ -106,15 +106,15 @@ if __name__ == "__main__":
             if model != "cnn-rnn":
                 num_layers = best_model.split("_")[3][2:]
             
-            # if model == "cnn-rnn":
-            #     cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
-            #     --model_arch={model} --dataset={dataset} \
-            #     --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
-            # else:
-            #     cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
-            #         --num_layers={num_layers} --model_arch={model} --dataset={dataset} \
-            #         --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
-            # subprocess.call(cmd, shell=True)
+            if model == "cnn-rnn":
+                cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
+                --model_arch={model} --dataset={dataset} \
+                --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
+            else:
+                cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
+                    --num_layers={num_layers} --model_arch={model} --dataset={dataset} \
+                    --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
+            subprocess.call(cmd, shell=True)
                     
     create_metric_plots(best_model_metrics)
     select_n_samples(n, model, dataset)

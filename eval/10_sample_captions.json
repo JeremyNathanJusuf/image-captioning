@@ -1,181 +1,181 @@
 {
-    "COCO_val2014_000000083923.jpg": {
-        "mscoco": {
+    "3111261053.jpg": {
+        "flickr": {
             "greedy": {
-                "vitcnn-attn": "a vase with a flower in it sitting on a table",
-                "cnn-rnn": "a vase with a flower in it on a table",
-                "cnn-attn": "a clear vase with a flower in it",
-                "vit-attn": "a vase with a flower in it next to a vase",
-                "yolocnn-attn": "a vase with flowers in it sitting on a table"
+                "vitcnn-attn": "a woman is sitting in a restaurant",
+                "cnn-rnn": "a group of people are sitting at a table with a large glass of wine",
+                "cnn-attn": "a group of people are sitting at a bar",
+                "vit-attn": "a group of people are standing in a restaurant",
+                "yolocnn-attn": "a man in a white shirt is sitting in a restaurant"
             },
             "beam": {
-                "vitcnn-attn": "a vase of flowers sitting on a table",
-                "cnn-rnn": "a vase filled with flowers on top of a table",
-                "cnn-attn": "a clear vase with a flower in it",
-                "vit-attn": "a vase filled with pink and white flowers",
-                "yolocnn-attn": "a vase filled with flowers sitting on a table"
-            }
-        }
-    },
-    "COCO_val2014_000000459634.jpg": {
-        "mscoco": {
-            "greedy": {
-                "vitcnn-attn": "a motorcycle is parked on the side of a road",
-                "cnn-rnn": "a motorcycle parked on the side of a road",
-                "cnn-attn": "a man riding a motorcycle down a curvy road",
-                "vit-attn": "a motorcycle parked on the side of a road",
-                "yolocnn-attn": "a motorcycle parked on the side of a road"
-            },
-            "beam": {
-                "vitcnn-attn": "a person riding a motorcycle on a road",
-                "cnn-rnn": "a motorcycle parked on the side of a road",
-                "cnn-attn": "a man riding a motorcycle down a curvy road",
-                "vit-attn": "a motorcycle parked on the side of a road",
-                "yolocnn-attn": "a motorcycle parked on the side of a road"
-            }
-        }
-    },
-    "COCO_val2014_000000384136.jpg": {
-        "mscoco": {
-            "greedy": {
-                "vitcnn-attn": "a woman is holding a camera in a mirror",
-                "cnn-rnn": "a woman is holding a cell phone in her hand",
-                "cnn-attn": "a woman is holding a cell phone in her hands",
-                "vit-attn": "a woman in a yellow shirt holding a blow dryer",
-                "yolocnn-attn": "a woman holding a cell phone in front of a mirror"
-            },
-            "beam": {
-                "vitcnn-attn": "a woman holding a camera in front of a mirror",
-                "cnn-rnn": "a woman holding a cell phone in her hand",
-                "cnn-attn": "a woman holding a cell phone up to her ear",
-                "vit-attn": "a woman taking a selfie in a mirror",
-                "yolocnn-attn": "a woman holding a cell phone in front of a mirror"
-            }
-        }
-    },
-    "COCO_val2014_000000132001.jpg": {
-        "mscoco": {
-            "greedy": {
-                "vitcnn-attn": "a computer keyboard sitting on top of a desk",
-                "cnn-rnn": "a computer keyboard and mouse on a desk",
-                "cnn-attn": "a keyboard and mouse on a desk with a mouse",
-                "vit-attn": "a computer keyboard and mouse on a desk",
-                "yolocnn-attn": "a computer keyboard and mouse on a table"
-            },
-            "beam": {
-                "vitcnn-attn": "a computer keyboard sitting on top of a desk",
-                "cnn-rnn": "a computer keyboard sitting on top of a desk",
-                "cnn-attn": "a computer keyboard and mouse on a desk",
-                "vit-attn": "a computer keyboard and mouse on a desk",
-                "yolocnn-attn": "a laptop computer sitting on top of a desk"
-            }
-        }
-    },
-    "COCO_val2014_000000145700.jpg": {
-        "mscoco": {
-            "greedy": {
-                "vitcnn-attn": "a traffic light on a street with a green light",
-                "cnn-rnn": "a traffic light on a street with a traffic light",
-                "cnn-attn": "a traffic light sitting above a street sign",
-                "vit-attn": "a traffic light hanging over a street at night",
-                "yolocnn-attn": "a traffic light sitting on the side of a road"
-            },
-            "beam": {
-                "vitcnn-attn": "a traffic light on a city street at night",
-                "cnn-rnn": "a traffic light on a city street",
-                "cnn-attn": "a green traffic light on a city street",
-                "vit-attn": "a traffic light hanging over a street at night",
-                "yolocnn-attn": "a traffic light sitting on the side of a road"
-            }
-        }
-    },
-    "COCO_val2014_000000544956.jpg": {
-        "mscoco": {
-            "greedy": {
-                "vitcnn-attn": "a couple of people sitting on a bench",
-                "cnn-rnn": "a man and woman sitting at a table with a cake",
-                "cnn-attn": "a group of people sitting at a table with a cake",
-                "vit-attn": "a man sitting on a bench looking at a cell phone",
-                "yolocnn-attn": "a group of people sitting around a table"
-            },
-            "beam": {
-                "vitcnn-attn": "a couple of people sitting on a bench",
-                "cnn-rnn": "a man and a woman sitting at a table",
-                "cnn-attn": "a group of people sitting at a table",
-                "vit-attn": "a couple of people sitting on a bench",
+                "vitcnn-attn": "people are sitting in a restaurant",
+                "cnn-rnn": "a group of people are sitting at a table",
+                "cnn-attn": "a group of people are sitting at a bar",
+                "vit-attn": "a group of people are in a cafe",
                 "yolocnn-attn": "a group of people sitting around a table"
             }
         }
     },
-    "COCO_val2014_000000074787.jpg": {
-        "mscoco": {
+    "2834409892.jpg": {
+        "flickr": {
             "greedy": {
-                "vitcnn-attn": "a toilet and a sink in a bathroom",
-                "cnn-rnn": "a bathroom with a toilet and a sink",
-                "cnn-attn": "a bathroom with a toilet and a sink",
-                "vit-attn": "a bathroom with a toilet and a sink",
-                "yolocnn-attn": "a bathroom with a toilet and a sink"
+                "vitcnn-attn": "a woman sitting on a bench with a man in a white shirt and black shorts is sitting on a bench",
+                "cnn-rnn": "a woman in a black shirt and a woman in a white dress are sitting on a bench",
+                "cnn-attn": "two women are sitting on a bench in front of a building",
+                "vit-attn": "a woman in a black shirt and blue shorts sits on a bench with a sign in her hand",
+                "yolocnn-attn": "a man and a woman are sitting on a bench"
             },
             "beam": {
-                "vitcnn-attn": "a white toilet sitting next to a trash can",
-                "cnn-rnn": "a bathroom with a toilet and a sink",
-                "cnn-attn": "a bathroom with a toilet and a sink",
-                "vit-attn": "a bathroom with a toilet and a sink",
-                "yolocnn-attn": "a bathroom with a toilet and a sink"
+                "vitcnn-attn": "a woman sits on a bench in front of a billboard",
+                "cnn-rnn": "two women sitting on a bench",
+                "cnn-attn": "two women are sitting on a bench",
+                "vit-attn": "a woman in a black and white striped shirt is sitting on a bench with a drink in her hand",
+                "yolocnn-attn": "a man and a woman sitting on a bench"
             }
         }
     },
-    "COCO_val2014_000000230877.jpg": {
-        "mscoco": {
+    "2352414953.jpg": {
+        "flickr": {
             "greedy": {
-                "vitcnn-attn": "a man riding a wave on top of a surfboard",
-                "cnn-rnn": "a man riding a wave on top of a surfboard",
-                "cnn-attn": "a man riding a wave on top of a surfboard",
-                "vit-attn": "a man riding a wave on top of a surfboard",
-                "yolocnn-attn": "a man riding a wave on top of a surfboard"
+                "vitcnn-attn": "a little girl in a green shirt is sitting in a highchair",
+                "cnn-rnn": "a little boy is eating a sandwich",
+                "cnn-attn": "a young girl in a highchair eats a pizza",
+                "vit-attn": "a smiling baby is sitting in a highchair with a bowl of food",
+                "yolocnn-attn": "a baby is eating a cookie"
             },
             "beam": {
-                "vitcnn-attn": "a man riding a wave on top of a surfboard",
-                "cnn-rnn": "a man riding a wave on top of a surfboard",
-                "cnn-attn": "a man riding a wave on top of a surfboard",
-                "vit-attn": "a man riding a wave on top of a surfboard",
-                "yolocnn-attn": "a man riding a wave on top of a surfboard"
+                "vitcnn-attn": "a little girl is sitting in a highchair",
+                "cnn-rnn": "a little boy is eating a sandwich",
+                "cnn-attn": "a young girl eats a cookie",
+                "vit-attn": "a baby is sitting in a highchair with his eyes closed",
+                "yolocnn-attn": "a young boy is eating a corn"
             }
         }
     },
-    "COCO_val2014_000000378327.jpg": {
-        "mscoco": {
+    "3090923153.jpg": {
+        "flickr": {
             "greedy": {
-                "vitcnn-attn": "a knife and fork are on a cutting board",
-                "cnn-rnn": "a knife and a knife on a cutting board",
-                "cnn-attn": "a knife is on a cutting board with a knife",
-                "vit-attn": "a knife and a knife on a cutting board",
-                "yolocnn-attn": "a knife and fork are on a wooden table"
+                "vitcnn-attn": "a man in a black shirt is playing the drums",
+                "cnn-rnn": "a man in a black shirt and black pants plays a guitar",
+                "cnn-attn": "a man in a black shirt is playing the drums",
+                "vit-attn": "a man playing the drums",
+                "yolocnn-attn": "a man in a white shirt is playing a drum set"
             },
             "beam": {
-                "vitcnn-attn": "a knife and fork are on a cutting board",
-                "cnn-rnn": "a knife and a knife on a cutting board",
-                "cnn-attn": "a knife that is on a cutting board",
-                "vit-attn": "a knife and a knife on a cutting board",
-                "yolocnn-attn": "a knife sits on a wooden cutting board"
+                "vitcnn-attn": "a man is playing the drums",
+                "cnn-rnn": "a man in a black shirt is playing a guitar",
+                "cnn-attn": "a man is playing the drums",
+                "vit-attn": "a man playing the drums",
+                "yolocnn-attn": "a man is playing a drum set"
             }
         }
     },
-    "COCO_val2014_000000244215.jpg": {
-        "mscoco": {
+    "3500147750.jpg": {
+        "flickr": {
             "greedy": {
-                "vitcnn-attn": "a dog is standing next to a bunch of suitcases",
-                "cnn-rnn": "a dog is standing in the back of a truck",
-                "cnn-attn": "a dog is standing in the middle of a room",
-                "vit-attn": "a dog standing next to a blue and white and blue luggage",
-                "yolocnn-attn": "a group of people standing next to a pile of luggage"
+                "vitcnn-attn": "a woman in a red shirt and blue jeans is sitting on a blue mat",
+                "cnn-rnn": "a man in a red shirt is jumping in the air",
+                "cnn-attn": "a woman in a red shirt and red pants is laying down on a hill",
+                "vit-attn": "a man and a woman are posing for a picture",
+                "yolocnn-attn": "a man in a black shirt and a woman in a black jacket are posing for a picture"
             },
             "beam": {
-                "vitcnn-attn": "a dog standing next to a bunch of suitcases",
-                "cnn-rnn": "a dog sitting in the back of a truck",
-                "cnn-attn": "a dog is standing in front of a fire hydrant",
-                "vit-attn": "a dog is standing in front of a blue door",
-                "yolocnn-attn": "a group of men standing next to each other"
+                "vitcnn-attn": "a woman in a red shirt and blue jeans is sitting on the ground",
+                "cnn-rnn": "a man in a red shirt is jumping in the air",
+                "cnn-attn": "a woman in a red shirt and red jacket is sliding down a hill",
+                "vit-attn": "a man and a woman are posing for a picture",
+                "yolocnn-attn": "a man in a black jacket is juggling oranges"
+            }
+        }
+    },
+    "3019748495.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a man in a white shirt is sitting at a computer",
+                "cnn-rnn": "a man in a black shirt is sitting at a table with a computer screen",
+                "cnn-attn": "a man in a blue shirt is looking at a computer screen",
+                "vit-attn": "a man in a white shirt is working on a computer",
+                "yolocnn-attn": "a woman in a white shirt and black pants is sitting at a computer desk"
+            },
+            "beam": {
+                "vitcnn-attn": "a man is sitting at a computer",
+                "cnn-rnn": "a group of people are sitting at a table",
+                "cnn-attn": "a man and a woman are looking at a computer screen",
+                "vit-attn": "a man in a white shirt is working on a computer",
+                "yolocnn-attn": "a woman is sitting at a desk with a computer screen"
+            }
+        }
+    },
+    "544149309.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a man in a black shirt and jeans is standing on a roof",
+                "cnn-rnn": "a man in a blue shirt and shorts is standing on a sidewalk",
+                "cnn-attn": "a man in a yellow shirt is standing on a roof",
+                "vit-attn": "a man in a blue shirt and jeans is standing on a roof",
+                "yolocnn-attn": "a man in a red shirt and black pants is standing on a sidewalk"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a black shirt and jeans is standing on a roof",
+                "cnn-rnn": "a man in a blue shirt is standing in front of a building",
+                "cnn-attn": "a man in a yellow shirt is standing on a roof",
+                "vit-attn": "a man in a blue shirt and jeans is standing on a roof",
+                "yolocnn-attn": "a man in a red shirt is standing on a sidewalk"
+            }
+        }
+    },
+    "96395587.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a group of people are enjoying a meal",
+                "cnn-rnn": "a group of people are sitting at a table with a large glass of wine",
+                "cnn-attn": "a group of people are sitting at a table",
+                "vit-attn": "a group of people are sitting around a table",
+                "yolocnn-attn": "a group of people are sitting around a table"
+            },
+            "beam": {
+                "vitcnn-attn": "a group of people are sitting in a restaurant",
+                "cnn-rnn": "a group of people are sitting at a table",
+                "cnn-attn": "a group of people are sitting at a restaurant",
+                "vit-attn": "a group of people are sitting around a table",
+                "yolocnn-attn": "a group of people sitting around a table"
+            }
+        }
+    },
+    "2662570182.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a man in a blue shirt is sitting on a sidewalk",
+                "cnn-rnn": "a man in a blue shirt is sitting on a bench with his eyes closed",
+                "cnn-attn": "a man in a blue shirt is sitting on a bench",
+                "vit-attn": "a man and woman are walking down the street",
+                "yolocnn-attn": "a man in a blue shirt is sitting on a blue bench"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a blue shirt is sitting on the sidewalk",
+                "cnn-rnn": "a man and a woman are sitting on a bench",
+                "cnn-attn": "a man in a blue shirt is sitting on a bench",
+                "vit-attn": "a man in a black shirt and blue jeans is pulling a child on a scooter",
+                "yolocnn-attn": "a man and a woman are sitting on the ground"
+            }
+        }
+    },
+    "6221289833.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a young boy in a green shirt and white shorts is running in a field",
+                "cnn-rnn": "a man in a red shirt is kicking a soccer ball",
+                "cnn-attn": "a soccer player in a white uniform is about to kick a soccer ball",
+                "vit-attn": "a soccer player in a white uniform is kicking a soccer ball",
+                "yolocnn-attn": "a young girl in a white shirt and black shorts is playing soccer"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a white shirt and black shorts is playing soccer",
+                "cnn-rnn": "a man in a red shirt is kicking a soccer ball",
+                "cnn-attn": "a man in a white uniform kicking a soccer ball",
+                "vit-attn": "a soccer player in a white uniform is kicking a soccer ball",
+                "yolocnn-attn": "two men playing soccer"
             }
         }
     }
