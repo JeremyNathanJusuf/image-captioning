@@ -1,0 +1,202 @@
+{
+    "2162469360.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a construction worker in a yellow jumpsuit and orange safety vest is standing on a platform",
+                "cnn-rnn": "a man in a red jacket is snowboarding",
+                "cnn-attn": "a man in a yellow jacket is snowboarding",
+                "vit-attn": "a man in a yellow safety vest and hard hat is working on a construction project",
+                "yolo-attn": "a man in a blue shirt is holding a sign",
+                "yolocnn-attn": "a man in a yellow shirt is standing on a ladder"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a yellow shirt is standing on a platform",
+                "cnn-rnn": "a man in a red shirt and black pants is snowboarding",
+                "cnn-attn": "a man in a yellow jacket is snowboarding",
+                "vit-attn": "two men in hard hats and safety vests are working on a road",
+                "yolo-attn": "a man in a blue shirt and blue jeans is standing in front of a microphone",
+                "yolocnn-attn": "a man in a red shirt and black pants is standing on a concrete structure"
+            }
+        }
+    },
+    "3524519277.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a group of men in uniform standing in front of a group of men",
+                "cnn-rnn": "a group of men in uniform are standing in front of a crowd",
+                "cnn-attn": "two police officers in uniform walk down the street",
+                "vit-attn": "two men in black jackets stand in front of a wall with a sign",
+                "yolo-attn": "a man in a black shirt and jeans is standing in front of a store",
+                "yolocnn-attn": "two men in black jackets stand in front of a building"
+            },
+            "beam": {
+                "vitcnn-attn": "a group of police officers are standing in front of a crowd",
+                "cnn-rnn": "a group of men are standing in front of a building",
+                "cnn-attn": "two police officers stand in front of a building",
+                "vit-attn": "two police officers talking to each other",
+                "yolo-attn": "a man and a woman are walking down the street",
+                "yolocnn-attn": "a man in a black jacket and blue jeans is standing in front of a crowd"
+            }
+        }
+    },
+    "107582366.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a group of people are sitting in a dimly lit room",
+                "cnn-rnn": "a group of people are sitting at a table in a room",
+                "cnn-attn": "a group of people are sitting at a table",
+                "vit-attn": "a group of people are sitting around a table",
+                "yolo-attn": "a man in a white shirt is standing in front of a microphone",
+                "yolocnn-attn": "a group of people are standing in a dimly lit room"
+            },
+            "beam": {
+                "vitcnn-attn": "a group of people are gathered around a table",
+                "cnn-rnn": "a group of people are sitting at a table",
+                "cnn-attn": "a group of people are sitting on a stage",
+                "vit-attn": "a group of people are sitting around a table",
+                "yolo-attn": "a man in a white shirt is standing in front of a microphone",
+                "yolocnn-attn": "a group of people are sitting in a dimly lit room"
+            }
+        }
+    },
+    "2525298345.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a group of people are playing on a sunny day",
+                "cnn-rnn": "a man and a woman are walking down a path",
+                "cnn-attn": "a group of people are sitting on a grassy field",
+                "vit-attn": "a group of people are playing in the grass",
+                "yolo-attn": "a man in a white shirt and jeans is walking down a road",
+                "yolocnn-attn": "a man in a white shirt and blue shorts is playing golf"
+            },
+            "beam": {
+                "vitcnn-attn": "a group of people sitting on the grass",
+                "cnn-rnn": "a man in a white shirt and blue jeans is jumping in the air",
+                "cnn-attn": "a group of people are sitting on the grass",
+                "vit-attn": "a group of people are standing on a grassy field",
+                "yolo-attn": "a group of people are walking along a beach",
+                "yolocnn-attn": "a man in a white shirt and blue shorts is playing golf"
+            }
+        }
+    },
+    "289939071.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a woman in a green shirt is sitting on a bench",
+                "cnn-rnn": "a man and a woman are sitting on a bench",
+                "cnn-attn": "a woman in a white tank top and blue jeans is sitting on a bench",
+                "vit-attn": "a woman and a man are sitting on a bench next to a pond",
+                "yolo-attn": "a man in a blue shirt is standing in front of a computer",
+                "yolocnn-attn": "a group of people sitting on a bench"
+            },
+            "beam": {
+                "vitcnn-attn": "a man and woman are sitting on a bench",
+                "cnn-rnn": "a man and a woman are sitting on a bench",
+                "cnn-attn": "a man and a woman are sitting on a bench",
+                "vit-attn": "two women are sitting on a bench next to a pond",
+                "yolo-attn": "a man in a blue shirt is standing in front of a computer",
+                "yolocnn-attn": "a group of people are sitting on a bench"
+            }
+        }
+    },
+    "2909982588.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a man in a blue shirt is eating a snack",
+                "cnn-rnn": "a man in a blue shirt is sitting at a table with a book",
+                "cnn-attn": "a woman in a blue shirt is eating a sandwich",
+                "vit-attn": "a man in a blue shirt is eating a sandwich outside",
+                "yolo-attn": "a man in a blue shirt and jeans is sitting on a bench with a dog",
+                "yolocnn-attn": "a man in a blue shirt is eating a meal"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a blue shirt is eating a snack",
+                "cnn-rnn": "a man and a woman are sitting at a table eating",
+                "cnn-attn": "a man in a blue shirt is eating a sandwich",
+                "vit-attn": "a man eats a sandwich outside",
+                "yolo-attn": "a man in a red shirt and blue jeans is playing tennis",
+                "yolocnn-attn": "a man in a blue shirt eats a meal"
+            }
+        }
+    },
+    "4837466309.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a woman in a yellow shirt is laughing in a tub",
+                "cnn-rnn": "a man and a woman are playing in a pool",
+                "cnn-attn": "a young boy is in a tub",
+                "vit-attn": "a man is sitting in a chair in a pool",
+                "yolo-attn": "a man in a white shirt is playing a guitar",
+                "yolocnn-attn": "a young girl is jumping into a pool"
+            },
+            "beam": {
+                "vitcnn-attn": "a woman in a yellow shirt is laughing in a tub",
+                "cnn-rnn": "a man and a woman are swimming in a pool",
+                "cnn-attn": "a young girl in a tub",
+                "vit-attn": "a group of people are relaxing in a small pool",
+                "yolo-attn": "a man in a white shirt is playing a guitar",
+                "yolocnn-attn": "two children are playing in a pool"
+            }
+        }
+    },
+    "2605591891.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a young boy in a blue shirt and jeans rides a bike",
+                "cnn-rnn": "a young boy rides a bike down a street",
+                "cnn-attn": "a man in a blue shirt and jeans is riding a bicycle",
+                "vit-attn": "a man in a blue shirt and jeans riding a bicycle",
+                "yolo-attn": "a man in a black shirt is walking down a sidewalk",
+                "yolocnn-attn": "a man in a black shirt and jeans is riding a unicycle"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a blue shirt is riding a bike",
+                "cnn-rnn": "a man in a blue shirt is riding a bike",
+                "cnn-attn": "a man in a blue shirt is riding a bike",
+                "vit-attn": "a man riding a bicycle on the street",
+                "yolo-attn": "a man in a blue shirt is walking down a sidewalk",
+                "yolocnn-attn": "a man is riding a unicycle on a unicycle"
+            }
+        }
+    },
+    "1803299842.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a group of people are walking down the street",
+                "cnn-rnn": "a man in a blue shirt is standing in front of a building",
+                "cnn-attn": "a man in a red shirt is walking down a sidewalk",
+                "vit-attn": "a man in a black jacket is sitting on a bench",
+                "yolo-attn": "a man in a black shirt and jeans is standing in front of a store",
+                "yolocnn-attn": "a man in a yellow shirt and blue jeans is walking past a building"
+            },
+            "beam": {
+                "vitcnn-attn": "a group of people are walking down the street",
+                "cnn-rnn": "a group of people are sitting on a bench",
+                "cnn-attn": "a man in a red shirt is walking down a street",
+                "vit-attn": "a man is sitting on a bench in front of a white wall",
+                "yolo-attn": "a man in a blue shirt is standing in front of a crowd",
+                "yolocnn-attn": "a man in a yellow shirt is standing next to a woman in a black jacket"
+            }
+        }
+    },
+    "51565199.jpg": {
+        "flickr": {
+            "greedy": {
+                "vitcnn-attn": "a man in a green shirt is standing in front of a red brick wall",
+                "cnn-rnn": "a man in a blue shirt is holding a small child",
+                "cnn-attn": "a man in a red shirt is fixing a toy train",
+                "vit-attn": "a man in a blue shirt is looking at a woman in a pink shirt",
+                "yolo-attn": "a man in a white shirt is holding a microphone",
+                "yolocnn-attn": "a man in a blue shirt is standing on a grill"
+            },
+            "beam": {
+                "vitcnn-attn": "a man in a green shirt is standing in front of a machine",
+                "cnn-rnn": "a man in a blue shirt and blue jeans is working on a piece of wood",
+                "cnn-attn": "a man in a red shirt is fixing a toy train",
+                "vit-attn": "a man in a black shirt and a man in a red shirt are looking at something on a table",
+                "yolo-attn": "a woman in a white shirt is holding a baby",
+                "yolocnn-attn": "a young girl in a pink shirt and blue jeans is playing with a toy truck"
+            }
+        }
+    }
+}

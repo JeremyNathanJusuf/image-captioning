@@ -172,6 +172,9 @@ def eval(
     for i in range(len(all_beam_img_ids)):
         model_captions[all_beam_img_ids[i]]['beam'] = all_pred_tokens_beam[i]
     
+    # sort based on img_ids
+    model_captions = dict(sorted(model_captions.items()))
+    
     # save captions to a JSON file
     captions_file_path = Path('./eval/captions.json')
     captions_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,7 +263,7 @@ if __name__ == "__main__":
         model_config['yolocnn_num_layers'] = num_layers
         model_config['yolocnn_num_heads'] = 4
     
-    if model_arch == "rnn_model":
+    if model_arch == "cnn-rnn":
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}"
     else:
         saved_name = f"bs{batch_size}_lr{learning_rate}_es{embed_size}_nl{num_layers}"

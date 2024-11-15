@@ -4,7 +4,7 @@
             "bs64_lr0.0005_es256_nl1": {
                 "val_greedy_bleus": 0.1974336371161856,
                 "val_greedy_meteors": 0.3733854196722689,
-                "val_greedy_ciders": 0.413727779545741,
+                "val_greedy_ciders": 0.41372777954574097,
                 "val_beam_bleus": 0.21932036305711955,
                 "val_beam_meteors": 0.3825605785947047,
                 "val_beam_ciders": 0.4464418766484949
@@ -16,7 +16,7 @@
             "bs128_lr0.0005_es256_nl-1": {
                 "val_greedy_bleus": 0.18570019966238274,
                 "val_greedy_meteors": 0.36122056370775685,
-                "val_greedy_ciders": 0.3438733952475366,
+                "val_greedy_ciders": 0.3438733952475365,
                 "val_beam_bleus": 0.19625051988514086,
                 "val_beam_meteors": 0.3641637332185987,
                 "val_beam_ciders": 0.3655153855532389
@@ -31,7 +31,7 @@
                 "val_greedy_ciders": 0.3900292957884123,
                 "val_beam_bleus": 0.20899286842518414,
                 "val_beam_meteors": 0.3682815541979244,
-                "val_beam_ciders": 0.4116284152977191
+                "val_beam_ciders": 0.41162841529771915
             }
         }
     },
@@ -43,7 +43,31 @@
                 "val_greedy_ciders": 0.4074018710153732,
                 "val_beam_bleus": 0.20749852203625913,
                 "val_beam_meteors": 0.3741140976399085,
-                "val_beam_ciders": 0.4319650202964992
+                "val_beam_ciders": 0.43196502029649914
+            }
+        }
+    },
+    "yolocnn-attn": {
+        "flickr": {
+            "bs64_lr0.001_es256_nl2": {
+                "val_greedy_bleus": 0.16775275478682541,
+                "val_greedy_meteors": 0.3531747569936082,
+                "val_greedy_ciders": 0.3409842705733737,
+                "val_beam_bleus": 0.18565640130086516,
+                "val_beam_meteors": 0.3537927736180101,
+                "val_beam_ciders": 0.3604992610929565
+            }
+        }
+    },
+    "yolo-attn": {
+        "flickr": {
+            "bs64_lr0.0005_es256_nl2": {
+                "val_greedy_bleus": 0.11695046710699086,
+                "val_greedy_meteors": 0.27345541857317995,
+                "val_greedy_ciders": 0.10648062164949121,
+                "val_beam_bleus": 0.11814045017224536,
+                "val_beam_meteors": 0.2741881440827229,
+                "val_beam_ciders": 0.11786670277203927
             }
         }
     }
