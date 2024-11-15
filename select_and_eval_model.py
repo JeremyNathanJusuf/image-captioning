@@ -1,54 +1,41 @@
 import subprocess
 import os
 import json
+import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-def create_bleu_plot(best_model_metrics):
-
+def create_metric_plots(best_model_metrics):
+    metric_name_list = ["bleus", "ciders", "meteors"]
     for dataset in best_model_metrics:
-        # create subplot for greedy bleu and beam bleu
-        f, ax = plt.subplots(1, 2, figsize=(15, 5))
-        for model in best_model_metrics[dataset]:
-            # # modify such that the epoch is of multple of 5
-            metrics = best_model_metrics[dataset][model]
-            metrics = best_model_metrics[dataset][model]
-
-            # Generate x-tick labels as multiples of 5, but use normal indexing for plotting
-            x_indices = list(range(len(metrics['val_greedy_bleus'])))
-            x_labels = [(i + 1) * 5 for i in x_indices]
-
-            # Plot Greedy BLEU
-            ax[0].plot(x_indices, metrics['val_greedy_bleus'], label=model)
-            ax[0].set_title(f"Greedy BLEU for {dataset}")
-            ax[0].set_xlabel("Epoch")
-            ax[0].set_ylabel("BLEU Score")
-            ax[0].legend()
-            ax[0].set_xticks(x_indices)
-            ax[0].set_xticklabels(x_labels)  # Set custom labels as multiples of 5
-
-            # Plot Beam BLEU
-            ax[1].plot(x_indices, metrics['val_beam_bleus'], label=model)
-            ax[1].set_title(f"Beam BLEU for {dataset}")
-            ax[1].set_xlabel("Epoch")
-            ax[1].set_ylabel("BLEU Score")
-            ax[1].legend()
-            ax[1].set_xticks(x_indices)
-            ax[1].set_xticklabels(x_labels)  # Set custom labels as multiples of 5
-
-        
-        # check parent folder
-        Path(f"./eval/bleu_plots/").mkdir(parents=True, exist_ok=True)
-        # sace the dataset plot
-        plt.savefig(f"./eval/bleu_plots/{dataset}_bleu_plot.png")
+        for metric_name in metric_name_list:
+            f, ax = plt.subplots(1, 2, figsize=(15, 5))
             
-
-model_list = ["vitcnn-attn","cnn-rnn", "cnn-attn",  "vit-attn", ]
-# "yolo-attn", "yolocnn-attn"]
+            for model in best_model_metrics[dataset]:
+                metrics = best_model_metrics[dataset][model]
+                metrics = best_model_metrics[dataset][model]
+                
+                for i, inference_type in enumerate(["greedy", "beam"]):
+                    # Generate x-tick labels as multiples of 5, but use normal indexing for plotting
+                    x_indices = list(range(len(metrics[f"val_{inference_type}_{metric_name}"])))
+                    x_labels = [(i + 1) * 5 for i in x_indices]
+                
+                    ax[i].plot(x_indices, metrics[f"val_{inference_type}_{metric_name}"], label=model)
+                    ax[i].set_title(f"{inference_type} {metric_name.upper()} for {dataset}")
+                    ax[i].set_xlabel("Epoch")
+                    
+                    ax[i].legend()
+                    ax[i].set_xticks(x_indices)
+                    ax[i].set_xticklabels(x_labels)  
+            
+            # save the dataset plot
+            Path(f"./eval/metric_plots/").mkdir(parents=True, exist_ok=True)
+            plt.savefig(f"./eval/metric_plots/{dataset}_{metric_name}_plot.png")
+            
+model_list = ["vitcnn-attn","cnn-rnn", "cnn-attn",  "vit-attn", "yolocnn-attn"]
 dataset_list = ["flickr", "coco"]
 num_epoch_eval = 50
 best_model_metrics = {}
-
 
 for model in model_list:
     for dataset in dataset_list:
@@ -85,14 +72,14 @@ for model in model_list:
         if model != "cnn-rnn":
             num_layers = best_model.split("_")[3][2:]
         
-        # if model == "cnn-rnn":
-        #     cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
-        #     --model_arch={model} --dataset={dataset} \
-        #     --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
-        # else:
-        #     cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
-        #         --num_layers={num_layers} --model_arch={model} --dataset={dataset} \
-        #         --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
-        # subprocess.call(cmd, shell=True)
+        if model == "cnn-rnn":
+            cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
+            --model_arch={model} --dataset={dataset} \
+            --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
+        else:
+            cmd = f"python eval.py --batch_size={batch_size} --learning_rate={learning_rate} --embed_size={embed_size} \
+                --num_layers={num_layers} --model_arch={model} --dataset={dataset} \
+                --checkpoint_dir=./checkpoints/{model}/{dataset}/{best_model}/checkpoint_epoch_{num_epoch_eval}.pth.tar"
+        subprocess.call(cmd, shell=True)
                 
-create_bleu_plot(best_model_metrics)
+create_metric_plots(best_model_metrics)
