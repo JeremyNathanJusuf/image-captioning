@@ -1,8 +1,6 @@
 flickr8k
 flickr30k
 mscoco
-metric_logs
 *__pycache__
 checkpoints
-runs
 precomputed
