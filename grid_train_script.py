@@ -4,10 +4,10 @@ import time
 
 batch_size = [64, 128]
 learning_rate = [0.0005, 0.001]
-num_layers = [2, 4]
-embed_size = [256, 512]
+num_layers = [1, 2]
+embed_size = [256]
 # config_file = ["config-flickr-cnnrnn.yaml", "config-flickr-cnnattn.yaml", "config-flickr-vitcnnattn.yaml"]
-config_file = ["config-flickr-yoloattn.yaml"]
+config_file = ["config-flickr-yolocnnattn.yaml"]
 
 for config in config_file:
     if "attn" in config:
